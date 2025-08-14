@@ -7,6 +7,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AdminDashboard } from "@/pages/admin/AdminDashboard";
+import { VehicleManagement } from "@/pages/admin/VehicleManagement";
 import { TrainerDashboard } from "@/pages/trainer/TrainerDashboard";
 import { SecurityDashboard } from "@/pages/security/SecurityDashboard";
 import NotFound from "./pages/NotFound";
@@ -28,6 +29,7 @@ function AppRoutes() {
         
         {/* Admin Routes */}
         <Route path="/admin" element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/admin/vehicles" element={user?.role === 'admin' ? <VehicleManagement /> : <Navigate to={`/${user?.role}`} />} />
         
         {/* Trainer Routes */}
         <Route path="/trainer" element={user?.role === 'trainer' ? <TrainerDashboard /> : <Navigate to={`/${user?.role}`} />} />

@@ -109,7 +109,10 @@ export function AppSidebar() {
                       isActive={isActive(item.url)}
                       className="nav-item"
                     >
-                      <a href={item.url} className="flex items-center space-x-3 p-3">
+                      <a href={item.url} className="flex items-center space-x-3 p-3" onClick={(e) => {
+                        e.preventDefault();
+                        window.location.href = item.url;
+                      }}>
                         <item.icon className="h-5 w-5 flex-shrink-0" />
                         {state === "expanded" && <span className="font-medium">{item.title}</span>}
                       </a>
