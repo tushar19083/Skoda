@@ -9,73 +9,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Edit, Trash2, Car, Search, Filter } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { useVehicles, Vehicle } from '@/hooks/useVehicles';
 
-interface Vehicle {
-  id: string;
-  brand: 'Skoda' | 'Volkswagen' | 'Audi';
-  model: string;
-  year: number;
-  licensePlate: string;
-  vin: string;
-  color: string;
-  fuelType: 'Petrol' | 'Diesel' | 'Electric' | 'Hybrid';
-  status: 'Available' | 'Booked' | 'Maintenance' | 'Out of Service';
-  mileage: number;
-  location: string;
-  lastService: string;
-  notes: string;
-}
-
-const mockVehicles: Vehicle[] = [
-  {
-    id: '1',
-    brand: 'Skoda',
-    model: 'Octavia',
-    year: 2023,
-    licensePlate: 'SK-123-AB',
-    vin: 'TMBJG7NE5N1234567',
-    color: 'White',
-    fuelType: 'Petrol',
-    status: 'Available',
-    mileage: 15000,
-    location: 'Garage A',
-    lastService: '2024-01-15',
-    notes: 'Regular maintenance completed'
-  },
-  {
-    id: '2',
-    brand: 'Volkswagen',
-    model: 'Golf',
-    year: 2022,
-    licensePlate: 'VW-456-CD',
-    vin: 'WVWZZZ1JZ1234567',
-    color: 'Blue',
-    fuelType: 'Diesel',
-    status: 'Booked',
-    mileage: 28000,
-    location: 'Garage B',
-    lastService: '2023-12-20',
-    notes: 'Minor scratches on rear bumper'
-  },
-  {
-    id: '3',
-    brand: 'Audi',
-    model: 'A4',
-    year: 2024,
-    licensePlate: 'AU-789-EF',
-    vin: 'WAUZZZ4G1234567',
-    color: 'Black',
-    fuelType: 'Electric',
-    status: 'Available',
-    mileage: 5000,
-    location: 'Garage A',
-    lastService: '2024-02-10',
-    notes: 'New vehicle, excellent condition'
-  }
-];
-
-const initialVehicleForm: Omit<Vehicle, 'id'> = {
+const initialVehicleForm: Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'> = {
   brand: 'Skoda',
   model: '',
   year: new Date().getFullYear(),
@@ -91,14 +27,13 @@ const initialVehicleForm: Omit<Vehicle, 'id'> = {
 };
 
 export function VehicleManagement() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(mockVehicles);
+  const { vehicles, loading, addVehicle, updateVehicle, deleteVehicle } = useVehicles();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
-  const [vehicleForm, setVehicleForm] = useState<Omit<Vehicle, 'id'>>(initialVehicleForm);
+  const [vehicleForm, setVehicleForm] = useState<Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>>(initialVehicleForm);
   const [searchTerm, setSearchTerm] = useState('');
   const [brandFilter, setBrandFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const { toast } = useToast();
 
   const filteredVehicles = vehicles.filter(vehicle => {
     const matchesSearch = 
@@ -112,32 +47,19 @@ export function VehicleManagement() {
     return matchesSearch && matchesBrand && matchesStatus;
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (editingVehicle) {
-      // Update existing vehicle
-      setVehicles(prev => 
-        prev.map(v => v.id === editingVehicle.id ? { ...vehicleForm, id: editingVehicle.id } : v)
-      );
-      toast({
-        title: "Vehicle Updated",
-        description: `${vehicleForm.brand} ${vehicleForm.model} has been updated successfully.`,
-      });
-    } else {
-      // Add new vehicle
-      const newVehicle: Vehicle = {
-        ...vehicleForm,
-        id: Math.random().toString(36).substr(2, 9)
-      };
-      setVehicles(prev => [...prev, newVehicle]);
-      toast({
-        title: "Vehicle Added",
-        description: `${vehicleForm.brand} ${vehicleForm.model} has been added to the fleet.`,
-      });
+    try {
+      if (editingVehicle) {
+        await updateVehicle(editingVehicle.id, vehicleForm);
+      } else {
+        await addVehicle(vehicleForm);
+      }
+      resetForm();
+    } catch (error) {
+      console.error('Failed to save vehicle:', error);
     }
-    
-    resetForm();
   };
 
   const handleEdit = (vehicle: Vehicle) => {
@@ -146,14 +68,14 @@ export function VehicleManagement() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (vehicleId: string) => {
-    const vehicle = vehicles.find(v => v.id === vehicleId);
-    setVehicles(prev => prev.filter(v => v.id !== vehicleId));
-    toast({
-      title: "Vehicle Removed",
-      description: `${vehicle?.brand} ${vehicle?.model} has been removed from the fleet.`,
-      variant: "destructive"
-    });
+  const handleDelete = async (vehicleId: string) => {
+    if (confirm('Are you sure you want to delete this vehicle?')) {
+      try {
+        await deleteVehicle(vehicleId);
+      } catch (error) {
+        console.error('Failed to delete vehicle:', error);
+      }
+    }
   };
 
   const resetForm = () => {
@@ -359,26 +281,26 @@ export function VehicleManagement() {
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="lastService">Last Service Date</Label>
-                <Input
-                  id="lastService"
-                  type="date"
-                  value={vehicleForm.lastService}
-                  onChange={(e) => setVehicleForm(prev => ({ ...prev, lastService: e.target.value }))}
-                />
-              </div>
+                 <div className="space-y-2">
+                   <Label htmlFor="lastService">Last Service Date</Label>
+                   <Input
+                     id="lastService"
+                     type="date"
+                     value={vehicleForm.lastService || ''}
+                     onChange={(e) => setVehicleForm(prev => ({ ...prev, lastService: e.target.value }))}
+                   />
+                 </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  value={vehicleForm.notes}
-                  onChange={(e) => setVehicleForm(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Additional notes about the vehicle..."
-                  rows={3}
-                />
-              </div>
+                 <div className="space-y-2">
+                   <Label htmlFor="notes">Notes</Label>
+                   <Textarea
+                     id="notes"
+                     value={vehicleForm.notes || ''}
+                     onChange={(e) => setVehicleForm(prev => ({ ...prev, notes: e.target.value }))}
+                     placeholder="Additional notes about the vehicle..."
+                     rows={3}
+                   />
+                 </div>
               
               <div className="flex justify-end space-x-2 pt-4">
                 <Button type="button" variant="outline" onClick={resetForm}>

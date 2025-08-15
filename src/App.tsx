@@ -10,6 +10,8 @@ import { AdminDashboard } from "@/pages/admin/AdminDashboard";
 import { VehicleManagement } from "@/pages/admin/VehicleManagement";
 import { TrainerDashboard } from "@/pages/trainer/TrainerDashboard";
 import { SecurityDashboard } from "@/pages/security/SecurityDashboard";
+import { BookVehicle } from "@/pages/trainer/BookVehicle";
+import { MyBookings } from "@/pages/trainer/MyBookings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,6 +35,8 @@ function AppRoutes() {
         
         {/* Trainer Routes */}
         <Route path="/trainer" element={user?.role === 'trainer' ? <TrainerDashboard /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/trainer/book" element={user?.role === 'trainer' ? <BookVehicle /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/trainer/bookings" element={user?.role === 'trainer' ? <MyBookings /> : <Navigate to={`/${user?.role}`} />} />
         
         {/* Security Routes */}
         <Route path="/security" element={user?.role === 'security' ? <SecurityDashboard /> : <Navigate to={`/${user?.role}`} />} />

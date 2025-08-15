@@ -1,0 +1,281 @@
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Calendar, Car, Search, Filter, Clock, MapPin } from 'lucide-react';
+import { useBookings } from '@/hooks/useBookings';
+import { useVehicles } from '@/hooks/useVehicles';
+import { useAuth } from '@/contexts/AuthContext';
+import { format } from 'date-fns';
+
+export function MyBookings() {
+  const { user } = useAuth();
+  const { bookings, loading: bookingsLoading, updateBookingStatus, deleteBooking } = useBookings();
+  const { vehicles } = useVehicles();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  // Filter bookings for current user
+  const userBookings = bookings.filter(booking => booking.trainerId === user?.id);
+
+  const filteredBookings = userBookings.filter(booking => {
+    const vehicle = vehicles.find(v => v.id === booking.vehicleId);
+    const matchesSearch = 
+      booking.purpose.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicle?.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicle?.licensePlate.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="outline">Pending</Badge>;
+      case 'approved':
+        return <Badge className="bg-success text-success-foreground">Approved</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive">Rejected</Badge>;
+      case 'active':
+        return <Badge className="bg-primary text-primary-foreground">Active</Badge>;
+      case 'completed':
+        return <Badge variant="secondary">Completed</Badge>;
+      case 'cancelled':
+        return <Badge variant="outline">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getUrgencyBadge = (urgency: string) => {
+    return urgency === 'high' ? 
+      <Badge variant="destructive">High</Badge> : 
+      <Badge variant="outline">Normal</Badge>;
+  };
+
+  const handleCancelBooking = async (bookingId: string) => {
+    if (confirm('Are you sure you want to cancel this booking?')) {
+      await updateBookingStatus(bookingId, 'cancelled');
+    }
+  };
+
+  const getVehicleInfo = (vehicleId: string) => {
+    return vehicles.find(v => v.id === vehicleId);
+  };
+
+  const stats = {
+    total: userBookings.length,
+    pending: userBookings.filter(b => b.status === 'pending').length,
+    approved: userBookings.filter(b => b.status === 'approved').length,
+    active: userBookings.filter(b => b.status === 'active').length,
+  };
+
+  if (bookingsLoading) {
+    return <div className="flex justify-center py-8">Loading bookings...</div>;
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">My Bookings</h1>
+          <p className="text-muted-foreground">
+            Manage your vehicle reservations and training sessions
+          </p>
+        </div>
+        <Button className="btn-skoda">
+          <Calendar className="h-4 w-4 mr-2" />
+          New Booking
+        </Button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <div>
+                <p className="text-sm text-muted-foreground">Total Bookings</p>
+                <p className="text-2xl font-bold">{stats.total}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Clock className="h-5 w-5 text-warning" />
+              <div>
+                <p className="text-sm text-muted-foreground">Pending</p>
+                <p className="text-2xl font-bold">{stats.pending}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Car className="h-5 w-5 text-success" />
+              <div>
+                <p className="text-sm text-muted-foreground">Approved</p>
+                <p className="text-2xl font-bold">{stats.approved}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <MapPin className="h-5 w-5 text-primary" />
+              <div>
+                <p className="text-sm text-muted-foreground">Active</p>
+                <p className="text-2xl font-bold">{stats.active}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Filter className="h-5 w-5" />
+            <span>Filter & Search</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by purpose, vehicle model, or license plate..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Bookings Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Your Bookings</CardTitle>
+          <CardDescription>
+            {filteredBookings.length} booking{filteredBookings.length !== 1 ? 's' : ''} found
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {filteredBookings.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Vehicle</TableHead>
+                  <TableHead>Purpose</TableHead>
+                  <TableHead>Date & Time</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Urgency</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredBookings.map((booking) => {
+                  const vehicle = getVehicleInfo(booking.vehicleId);
+                  return (
+                    <TableRow key={booking.id}>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">
+                            {vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Vehicle not found'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {vehicle?.licensePlate}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <p className="font-medium">{booking.purpose}</p>
+                        {booking.notes && (
+                          <p className="text-sm text-muted-foreground">{booking.notes}</p>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <p className="text-sm">
+                            {format(new Date(booking.startDate), 'MMM dd, yyyy HH:mm')}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            to {format(new Date(booking.endDate), 'MMM dd, yyyy HH:mm')}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(booking.status)}</TableCell>
+                      <TableCell>{getUrgencyBadge(booking.urgency)}</TableCell>
+                      <TableCell>
+                        <div className="flex space-x-2">
+                          {booking.status === 'pending' && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleCancelBooking(booking.id)}
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                          {booking.status === 'approved' && (
+                            <Badge className="bg-success text-success-foreground">
+                              Ready for pickup
+                            </Badge>
+                          )}
+                          {booking.status === 'active' && (
+                            <Badge className="bg-primary text-primary-foreground">
+                              In use
+                            </Badge>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-8">
+              <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">No bookings found matching your criteria.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
