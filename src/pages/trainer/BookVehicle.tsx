@@ -12,6 +12,11 @@ import { useVehicles } from '@/hooks/useVehicles';
 import { useBookings } from '@/hooks/useBookings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import SkodaLogo from '@/assets/skodalogo.png';
+import VWLogo from '@/assets/vw.png';
+import AudiLogo from '@/assets/audi.png';
+
+
 
 type BookingStep = 'brand' | 'vehicle' | 'details' | 'confirmation';
 
@@ -40,8 +45,17 @@ export function BookVehicle() {
   const selectedVehicleData = vehicles.find(v => v.id === selectedVehicle);
 
   const getBrandLogo = (brand: string) => {
-    return brand.toLowerCase(); // Would be actual logo paths in production
-  };
+  switch (brand.toLowerCase()) {
+    case 'skoda':
+      return SkodaLogo;
+    case 'volkswagen':
+      return VWLogo;
+    case 'audi':
+      return AudiLogo;
+    default:
+      return '';
+  }
+};
 
   const handleBrandSelect = (brand: string) => {
     setSelectedBrand(brand);
@@ -96,17 +110,17 @@ export function BookVehicle() {
                   onClick={() => handleBrandSelect(brand)}
                 >
                   <CardContent className="p-8 text-center">
-                    <div className={`text-6xl font-bold mb-4 ${
-                      brand === 'Skoda' ? 'text-skoda' : 
-                      brand === 'Volkswagen' ? 'text-vw' : 'text-audi'
-                    }`}>
-                      {brand.charAt(0)}
-                    </div>
+                    <img
+                      src={getBrandLogo(brand)}
+                      alt={`${brand} logo`}
+                      className="h-16 mx-auto mb-4 object-contain"
+                    />
                     <h3 className="text-xl font-semibold mb-2">{brand}</h3>
                     <p className="text-sm text-muted-foreground">
                       {vehicles.filter(v => v.brand === brand && v.status === 'Available').length} available
                     </p>
                   </CardContent>
+
                 </Card>
               ))}
             </div>
@@ -132,20 +146,24 @@ export function BookVehicle() {
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {availableVehicles.map((vehicle) => (
-                  <Card 
+                  <Card
                     key={vehicle.id}
                     className="cursor-pointer hover:shadow-lg transition-all duration-200 hover:scale-105"
                     onClick={() => handleVehicleSelect(vehicle.id)}
                   >
                     <CardContent className="p-6">
                       <div className="flex items-center space-x-3 mb-4">
-                        <Car className="h-8 w-8 text-primary" />
+                        <img
+                          src={getBrandLogo(vehicle.brand)}
+                          alt={vehicle.brand}
+                          className="h-8 w-8 object-contain"
+                        />
                         <div>
                           <h3 className="font-semibold">{vehicle.model}</h3>
                           <p className="text-sm text-muted-foreground">{vehicle.year}</p>
                         </div>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span className="text-sm">License:</span>
@@ -164,12 +182,22 @@ export function BookVehicle() {
                           <span className="text-sm">{vehicle.location}</span>
                         </div>
                       </div>
-                      
-                      <Badge className="mt-4 bg-success text-success-foreground">
+
+                      {/* Status Badge with dynamic color */}
+                      <Badge
+                        className={`mt-4 ${
+                          vehicle.status === "Available"
+                            ? "bg-green-500 text-white"
+                            : vehicle.status === "In Use"
+                            ? "bg-blue-500 text-white"
+                            : "bg-red-500 text-white"
+                        }`}
+                      >
                         {vehicle.status}
                       </Badge>
                     </CardContent>
                   </Card>
+
                 ))}
               </div>
             )}

@@ -1,190 +1,217 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useToast } from '@/hooks/use-toast';
+// src/hooks/useVehicles.ts
+
+import { useState, useEffect } from "react";
 
 export interface Vehicle {
   id: string;
-  brand: 'Skoda' | 'Volkswagen' | 'Audi';
+  brand: string;
   model: string;
   year: number;
   licensePlate: string;
-  vin: string;
-  color: string;
-  fuelType: 'Petrol' | 'Diesel' | 'Electric' | 'Hybrid';
-  status: 'Available' | 'Booked' | 'Maintenance' | 'Out of Service';
+  fuelType: string;
   mileage: number;
   location: string;
-  lastService: string | null;
-  notes: string | null;
-  createdAt: string;
-  updatedAt: string;
+  status: "Available" | "In Use" | "Maintenance";
+  color: string;
 }
+
+const mockVehicles: Vehicle[] = [
+  // Skoda
+  {
+    id: "1",
+    brand: "Skoda",
+    model: "Octavia",
+    year: 2022,
+    licensePlate: "MH12 AB 1234",
+    fuelType: "Petrol",
+    mileage: 15000,
+    location: "Mumbai",
+    status: "Available",
+    color: "White",
+  },
+  {
+    id: "2",
+    brand: "Skoda",
+    model: "Superb",
+    year: 2020,
+    licensePlate: "KA01 BB 9090",
+    fuelType: "Petrol",
+    mileage: 30000,
+    location: "Bengaluru",
+    status: "Maintenance",
+    color: "Silver",
+  },
+  {
+    id: "3",
+    brand: "Skoda",
+    model: "Kushaq",
+    year: 2023,
+    licensePlate: "MH14 KL 2233",
+    fuelType: "Petrol",
+    mileage: 7000,
+    location: "Pune",
+    status: "In Use",
+    color: "Red",
+  },
+  {
+    id: "4",
+    brand: "Skoda",
+    model: "Slavia",
+    year: 2021,
+    licensePlate: "MH14JX5906",
+    fuelType: "Diesel",
+    mileage: 18000,
+    location: "Pune",
+    status: "Available",
+    color: "Blue",
+  },
+
+  // Volkswagen
+  {
+    id: "5",
+    brand: "Volkswagen",
+    model: "Polo",
+    year: 2021,
+    licensePlate: "MH14 XY 5678",
+    fuelType: "Diesel",
+    mileage: 22000,
+    location: "Pune",
+    status: "In Use",
+    color: "Red",
+  },
+  {
+    id: "6",
+    brand: "Volkswagen",
+    model: "Tiguan",
+    year: 2022,
+    licensePlate: "GJ01 CC 4455",
+    fuelType: "Diesel",
+    mileage: 12000,
+    location: "Ahmedabad",
+    status: "Available",
+    color: "Blue",
+  },
+  {
+    id: "7",
+    brand: "Volkswagen",
+    model: "Vento",
+    year: 2019,
+    licensePlate: "KA05 VW 3344",
+    fuelType: "Petrol",
+    mileage: 40000,
+    location: "Bengaluru",
+    status: "Maintenance",
+    color: "Black",
+  },
+  {
+    id: "8",
+    brand: "Volkswagen",
+    model: "Passat",
+    year: 2020,
+    licensePlate: "RJ14 VW 9988",
+    fuelType: "Diesel",
+    mileage: 28000,
+    location: "Jaipur",
+    status: "Available",
+    color: "Grey",
+  },
+  {
+    id: "9",
+    brand: "Volkswagen",
+    model: "Taigun",
+    year: 2023,
+    licensePlate: "DL2C VW 5566",
+    fuelType: "Petrol",
+    mileage: 6000,
+    location: "Delhi",
+    status: "In Use",
+    color: "White",
+  },
+
+  // Audi
+  {
+    id: "10",
+    brand: "Audi",
+    model: "Q7",
+    year: 2023,
+    licensePlate: "DL3C AA 4321",
+    fuelType: "Petrol",
+    mileage: 5000,
+    location: "Delhi",
+    status: "Available",
+    color: "Black",
+  },
+  {
+    id: "11",
+    brand: "Audi",
+    model: "A4",
+    year: 2021,
+    licensePlate: "TN10 DD 7788",
+    fuelType: "Petrol",
+    mileage: 18000,
+    location: "Chennai",
+    status: "In Use",
+    color: "Grey",
+  },
+  {
+    id: "12",
+    brand: "Audi",
+    model: "Q5",
+    year: 2022,
+    licensePlate: "MH01 AU 4455",
+    fuelType: "Diesel",
+    mileage: 14000,
+    location: "Mumbai",
+    status: "Available",
+    color: "Blue",
+  },
+  {
+    id: "13",
+    brand: "Audi",
+    model: "A6",
+    year: 2020,
+    licensePlate: "KL07 AU 7788",
+    fuelType: "Petrol",
+    mileage: 26000,
+    location: "Kochi",
+    status: "Maintenance",
+    color: "White",
+  },
+  {
+    id: "14",
+    brand: "Audi",
+    model: "E-tron",
+    year: 2023,
+    licensePlate: "HR26 AU 1122",
+    fuelType: "Electric",
+    mileage: 3000,
+    location: "Gurgaon",
+    status: "Available",
+    color: "Silver",
+  },
+  {
+    id: "15",
+    brand: "Audi",
+    model: "RS5",
+    year: 2022,
+    licensePlate: "WB20 RS 4455",
+    fuelType: "Petrol",
+    mileage: 10000,
+    location: "Kolkata",
+    status: "In Use",
+    color: "Red",
+  },
+];
 
 export function useVehicles() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
-
-  const fetchVehicles = async () => {
-    try {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('vehicles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const transformedVehicles: Vehicle[] = data.map(v => ({
-        id: v.id,
-        brand: v.brand,
-        model: v.model,
-        year: v.year,
-        licensePlate: v.license_plate,
-        vin: v.vin,
-        color: v.color,
-        fuelType: v.fuel_type,
-        status: v.status,
-        mileage: v.mileage,
-        location: v.location,
-        lastService: v.last_service,
-        notes: v.notes,
-        createdAt: v.created_at,
-        updatedAt: v.updated_at,
-      }));
-
-      setVehicles(transformedVehicles);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching vehicles:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch vehicles');
-      toast({
-        title: "Error",
-        description: "Failed to load vehicles",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addVehicle = async (vehicleData: Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>) => {
-    try {
-      const { data, error } = await supabase
-        .from('vehicles')
-        .insert({
-          brand: vehicleData.brand,
-          model: vehicleData.model,
-          year: vehicleData.year,
-          license_plate: vehicleData.licensePlate,
-          vin: vehicleData.vin,
-          color: vehicleData.color,
-          fuel_type: vehicleData.fuelType,
-          status: vehicleData.status,
-          mileage: vehicleData.mileage,
-          location: vehicleData.location,
-          last_service: vehicleData.lastService,
-          notes: vehicleData.notes,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      await fetchVehicles();
-      toast({
-        title: "Success",
-        description: `${vehicleData.brand} ${vehicleData.model} added successfully`,
-      });
-
-      return data;
-    } catch (err) {
-      console.error('Error adding vehicle:', err);
-      toast({
-        title: "Error",
-        description: "Failed to add vehicle",
-        variant: "destructive"
-      });
-      throw err;
-    }
-  };
-
-  const updateVehicle = async (id: string, updates: Partial<Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>>) => {
-    try {
-      const { error } = await supabase
-        .from('vehicles')
-        .update({
-          ...(updates.brand && { brand: updates.brand }),
-          ...(updates.model && { model: updates.model }),
-          ...(updates.year && { year: updates.year }),
-          ...(updates.licensePlate && { license_plate: updates.licensePlate }),
-          ...(updates.vin && { vin: updates.vin }),
-          ...(updates.color && { color: updates.color }),
-          ...(updates.fuelType && { fuel_type: updates.fuelType }),
-          ...(updates.status && { status: updates.status }),
-          ...(updates.mileage !== undefined && { mileage: updates.mileage }),
-          ...(updates.location && { location: updates.location }),
-          ...(updates.lastService !== undefined && { last_service: updates.lastService }),
-          ...(updates.notes !== undefined && { notes: updates.notes }),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      await fetchVehicles();
-      toast({
-        title: "Success",
-        description: "Vehicle updated successfully",
-      });
-    } catch (err) {
-      console.error('Error updating vehicle:', err);
-      toast({
-        title: "Error",
-        description: "Failed to update vehicle",
-        variant: "destructive"
-      });
-      throw err;
-    }
-  };
-
-  const deleteVehicle = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('vehicles')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      await fetchVehicles();
-      toast({
-        title: "Success",
-        description: "Vehicle removed successfully",
-      });
-    } catch (err) {
-      console.error('Error deleting vehicle:', err);
-      toast({
-        title: "Error",
-        description: "Failed to remove vehicle",
-        variant: "destructive"
-      });
-      throw err;
-    }
-  };
 
   useEffect(() => {
-    fetchVehicles();
+    // simulate API call
+    setTimeout(() => {
+      setVehicles(mockVehicles);
+    }, 500);
   }, []);
 
-  return {
-    vehicles,
-    loading,
-    error,
-    fetchVehicles,
-    addVehicle,
-    updateVehicle,
-    deleteVehicle,
-  };
+  return { vehicles };
 }

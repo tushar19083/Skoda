@@ -13,6 +13,16 @@ import { SecurityDashboard } from "@/pages/security/SecurityDashboard";
 import { BookVehicle } from "@/pages/trainer/BookVehicle";
 import { MyBookings } from "@/pages/trainer/MyBookings";
 import NotFound from "./pages/NotFound";
+import { IssueKeys } from "./pages/security/IssueKeyes";
+import { VehicleReturns } from "./pages/security/VehicleReturns";
+import { SecurityLogs } from "@/pages/security/SecurityLogs";
+import { Analytics } from "./pages/admin/Analytics";
+import { Users } from "./pages/admin/Users";
+import { Bookings } from "./pages/admin/Bookings";
+
+import { Reports } from "./pages/admin/Reports";
+import ServiceRecords from "./pages/admin/ServiceRecords";
+
 
 const queryClient = new QueryClient();
 
@@ -32,7 +42,12 @@ function AppRoutes() {
         {/* Admin Routes */}
         <Route path="/admin" element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/admin/vehicles" element={user?.role === 'admin' ? <VehicleManagement /> : <Navigate to={`/${user?.role}`} />} />
-        
+        <Route path="/admin/analytics" element={user?.role === 'admin' ? <Analytics /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/admin/users" element={user?.role === 'admin' ? <Users /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/admin/bookings" element={user?.role === 'admin' ? <Bookings /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/admin/service-records" element={user?.role === 'admin' ? <ServiceRecords /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/admin/reports" element={user?.role === 'admin' ? <Reports /> : <Navigate to={`/${user?.role}`} />} />
+
         {/* Trainer Routes */}
         <Route path="/trainer" element={user?.role === 'trainer' ? <TrainerDashboard /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/trainer/book" element={user?.role === 'trainer' ? <BookVehicle /> : <Navigate to={`/${user?.role}`} />} />
@@ -40,7 +55,10 @@ function AppRoutes() {
         
         {/* Security Routes */}
         <Route path="/security" element={user?.role === 'security' ? <SecurityDashboard /> : <Navigate to={`/${user?.role}`} />} />
-        
+        <Route path="/security/keys" element={user?.role === 'security' ? <IssueKeys/> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/security/returns" element={user?.role === 'security' ? <VehicleReturns /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/security/logs" element={user?.role === "security" ? <SecurityLogs /> : <Navigate to={`/${user?.role}`} />} />
+
         {/* Catch-all */}
         <Route path="*" element={<NotFound />} />
       </Routes>

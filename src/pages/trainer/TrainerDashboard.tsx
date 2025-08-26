@@ -1,4 +1,4 @@
-import { Calendar, Car, Clock, BookOpen, TrendingUp } from 'lucide-react';
+import { Calendar, Car, Clock, BookOpen, TicketCheck, } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,15 +6,17 @@ import { Badge } from '@/components/ui/badge';
 
 const mockStats = {
   upcomingBookings: 3,
-  totalBookings: 24,
-  hoursThisMonth: 18,
-  completedSessions: 21,
+  confirmBooking : 2,
+  pendingBooking: 1,
+  totalBookings: 4,
+
 };
 
 const mockUpcomingBookings = [
   {
     id: '1',
-    vehicle: 'Skoda Octavia RS - SK003',
+    vehicle: 'Skoda OCTAVIA ELE TS132/1.8A7F ',
+    regNo: 'MH20DJ2353',
     date: '2024-01-16',
     time: '09:00 - 11:00',
     purpose: 'Advanced Driving Training',
@@ -22,7 +24,8 @@ const mockUpcomingBookings = [
   },
   {
     id: '2',
-    vehicle: 'VW Golf GTI - VW005',
+    vehicle: 'VW Tiguan L 2.0 HL GT140TSI D7A',
+    regNo: 'MH14JH4308',
     date: '2024-01-17',
     time: '14:00 - 16:00',
     purpose: 'Safety Course',
@@ -30,7 +33,8 @@ const mockUpcomingBookings = [
   },
   {
     id: '3',
-    vehicle: 'Audi A3 - AD001',
+    vehicle: 'Audi Q3 TDI quatt.2.0 I4135 A7',
+    regNo: 'MH14GH0381',
     date: '2024-01-18',
     time: '10:00 - 12:00',
     purpose: 'Eco Driving Session',
@@ -111,25 +115,25 @@ export function TrainerDashboard() {
           icon={Calendar}
         />
         <StatCard
+          title="Confirm Booking"
+          value={mockStats.confirmBooking}
+          description="This month"
+          icon={TicketCheck}
+          trend={{ value: 8, isPositive: true }}
+        />
+        <StatCard
+          title="Pending Booking"
+          value={mockStats.pendingBooking}
+          description="This month"
+          icon={Clock}
+          trend={{ value: 12, isPositive: true }}
+        />
+        <StatCard
           title="Total Bookings"
           value={mockStats.totalBookings}
           description="This month"
           icon={Car}
           trend={{ value: 15, isPositive: true }}
-        />
-        <StatCard
-          title="Training Hours"
-          value={mockStats.hoursThisMonth}
-          description="This month"
-          icon={Clock}
-          trend={{ value: 8, isPositive: true }}
-        />
-        <StatCard
-          title="Completed Sessions"
-          value={mockStats.completedSessions}
-          description="This month"
-          icon={BookOpen}
-          trend={{ value: 12, isPositive: true }}
         />
       </div>
 
@@ -156,6 +160,7 @@ export function TrainerDashboard() {
                   >
                     <div className="space-y-2">
                       <p className="font-medium">{booking.vehicle}</p>
+                      <p className='text-sm text-muted-foregroung'>{booking.regNo}</p>
                       <p className="text-sm text-muted-foreground">{booking.purpose}</p>
                       <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                         <span>{booking.date}</span>
@@ -178,7 +183,7 @@ export function TrainerDashboard() {
         </div>
 
         {/* Quick Book Actions */}
-        <Card className="card-elevated">
+        {/* <Card className="card-elevated">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <TrendingUp className="h-5 w-5" />
@@ -209,11 +214,11 @@ export function TrainerDashboard() {
               </Button>
             </div>
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Training Progress */}
-      <Card className="card-elevated">
+      {/* <Card className="card-elevated">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <BookOpen className="h-5 w-5" />
@@ -239,7 +244,7 @@ export function TrainerDashboard() {
             </div>
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   );
 }

@@ -8,6 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Car, Shield, GraduationCap, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types/auth';
+import logo from "@/assets/image.png";
+import bgImage from "@/assets/bg.jpg";
 
 const roleConfig = {
   admin: {
@@ -64,26 +66,40 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-hero bg-cover bg-center bg-no-repeat p-4">
-      <div className="w-full max-w-md space-y-6">
-        {/* Logo and Header */}
-        <div className="text-center space-y-4">
-          <div className="flex items-center justify-center space-x-2">
-            <Car className="h-8 w-8 text-white" />
-            <h1 className="text-2xl font-bold text-white">Skoda Fleet</h1>
-          </div>
-          <p className="text-white/80">Vehicle Management Portal</p>
-        </div>
+      
+      {/* Background with blur */}
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage: `url(${bgImage})`,
+          filter: "blur(4px)",   // adjust blur strength here
+        }}
+      ></div>
 
+       {/* Overlay to dim the background slightly */}
+      <div className="absolute inset-0 bg-black/30"></div>
+
+      <div className="relative w-full max-w-md space-y-6 z-10">
+        {/* Logo and Header */}
+        
         <Card className="card-elevated">
           <CardHeader className="space-y-4">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <IconComponent className="h-6 w-6 text-primary" />
+
+              <div className="text-center space-y-4">
+                <div className="flex items-center justify-center">
+                  <img src={logo} alt="Brand Logo" className="h-23 w-23 object-contain" />
+                </div>
+                <p className="text-black/80">Vehicle Booking Portal</p>
               </div>
-              <div>
+
+              {/* <div className="p-2 bg-primary/10 rounded-lg">
+                <IconComponent className="h-6 w-6 text-primary" />
+              </div> */}
+              {/* <div>
                 <CardTitle className="text-xl">{config.title} Login</CardTitle>
                 <CardDescription>{config.description}</CardDescription>
-              </div>
+              </div> */}
             </div>
 
             {/* Role Selection */}
@@ -137,11 +153,12 @@ export function LoginPage() {
               </Button>
 
               {/* Demo Credentials */}
-              <div className="text-xs text-muted-foreground space-y-1 p-3 bg-muted/50 rounded-lg">
+              {/* <div className="text-xs text-muted-foreground space-y-1 p-3 bg-muted/50 rounded-lg">
                 <p className="font-medium">Demo Credentials:</p>
                 <p>Email: {config.defaultEmail}</p>
                 <p>Password: password123</p>
-              </div>
+              </div> */}
+              <a className='text-black/60 text-sm' href="">Forgot Password?</a>
             </form>
           </CardContent>
         </Card>

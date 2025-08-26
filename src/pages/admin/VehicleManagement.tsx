@@ -8,43 +8,132 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Edit, Trash2, Car, Search, Filter } from 'lucide-react';
-import { useVehicles, Vehicle } from '@/hooks/useVehicles';
+import { Plus, Edit, Trash2, Car, Search, Filter, AlertTriangle, CheckCircle, Shield } from 'lucide-react';
 
-const initialVehicleForm: Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'> = {
-  brand: 'Skoda',
+interface Vehicle {
+  id: string;
+  academyLocation: 'Pune' | 'VGTAP';
+  brand: 'VW' | 'SA' | 'AU';
+  model: string;
+  name: string;
+  vehicleRegNo: string;
+  vinNo: string;
+  insuranceValidityDate: string;
+  insuranceStatus: 'Valid' | 'Expired';
+  pucValidityDate: string;
+  pucStatus: 'Valid' | 'Expired' | 'NA';
+  dateDecommissioned?: string;
+  allocatedTrainer?: string;
+  remarks?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const initialVehicleForm: Omit<Vehicle, 'id' | 'slNo' | 'createdAt' | 'updatedAt'> = {
+  academyLocation: 'Pune',
+  brand: 'SA',
   model: '',
-  year: new Date().getFullYear(),
-  licensePlate: '',
-  vin: '',
-  color: '',
-  fuelType: 'Petrol',
-  status: 'Available',
-  mileage: 0,
-  location: '',
-  lastService: '',
-  notes: ''
+  name: '',
+  vehicleRegNo: '',
+  vinNo: '',
+  insuranceValidityDate: '',
+  insuranceStatus: 'Valid',
+  pucValidityDate: '',
+  pucStatus: 'Valid',
+  dateDecommissioned: '',
+  allocatedTrainer: '',
+  remarks: ''
 };
 
+const mockVehicles: Vehicle[] = [
+  {
+    id: '1',
+    academyLocation: 'Pune',
+    brand: 'VW',
+    model: 'Vento',
+    name: 'Polo A05 Ind.Highl 77 A6F',
+    vehicleRegNo: 'MH14DX2031',
+    vinNo: 'WVWJ11609CT011421',
+    insuranceValidityDate: '2026-06-30',
+    insuranceStatus: 'Valid',
+    pucValidityDate: '2025-05-20',
+    pucStatus: 'Expired',
+    allocatedTrainer: 'Transferred to VGTAP',
+    remarks: 'Transferred to VGTAP, NSTI, Hyderabad on 08.07.2025. PUC is not required as the car is used solely for static training purposes.',
+    createdAt: '2025-01-01',
+    updatedAt: '2025-08-04'
+  },
+  {
+    id: '2',
+    academyLocation: 'Pune',
+    brand: 'VW',
+    model: 'Vento',
+    name: 'POLO A05 1.5 HIGHL 77 TDI D7F',
+    vehicleRegNo: 'MH14EY185',
+    vinNo: 'MEXD1560XFT089626',
+    insuranceValidityDate: '2026-06-30',
+    insuranceStatus: 'Valid',
+    pucValidityDate: '2025-09-15',
+    pucStatus: 'Valid',
+    allocatedTrainer: 'Mahesh Deshmukh',
+    createdAt: '2025-01-01',
+    updatedAt: '2025-08-04'
+  },
+  {
+    id: '3',
+    academyLocation: 'Pune',
+    brand: 'SA',
+    model: 'Superb',
+    name: 'SUPERB GrtSTY TS132/1.8M6F',
+    vehicleRegNo: 'MH20DV1650',
+    vinNo: 'TMBBLANP5GA300004',
+    insuranceValidityDate: '2026-01-29',
+    insuranceStatus: 'Valid',
+    pucValidityDate: '2026-02-04',
+    pucStatus: 'Valid',
+    allocatedTrainer: 'Ranjeet Thorat',
+    createdAt: '2025-01-01',
+    updatedAt: '2025-08-04'
+  },
+  {
+    id: '4',
+    academyLocation: 'Pune',
+    brand: 'AU',
+    model: 'A4',
+    name: 'A4 Sedan 1.4 R4110 A7',
+    vehicleRegNo: 'MH14GH0382',
+    vinNo: 'WAUZKGF43HY700402',
+    insuranceValidityDate: '2026-06-30',
+    insuranceStatus: 'Valid',
+    pucValidityDate: '2025-09-15',
+    pucStatus: 'Valid',
+    allocatedTrainer: 'Dattaprasad Duble',
+    createdAt: '2025-01-01',
+    updatedAt: '2025-08-04'
+  }
+];
+
 export function VehicleManagement() {
-  const { vehicles, loading, addVehicle, updateVehicle, deleteVehicle } = useVehicles();
+  const [vehicles, setVehicles] = useState<Vehicle[]>(mockVehicles);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
-  const [vehicleForm, setVehicleForm] = useState<Omit<Vehicle, 'id' | 'createdAt' | 'updatedAt'>>(initialVehicleForm);
+  const [vehicleForm, setVehicleForm] = useState<Omit<Vehicle, 'id' | 'slNo' | 'createdAt' | 'updatedAt'>>(initialVehicleForm);
   const [searchTerm, setSearchTerm] = useState('');
   const [brandFilter, setBrandFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [locationFilter, setLocationFilter] = useState<string>('all');
 
   const filteredVehicles = vehicles.filter(vehicle => {
     const matchesSearch = 
+      vehicle.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicle.vehicleRegNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      vehicle.vinNo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       vehicle.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vehicle.licensePlate.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vehicle.vin.toLowerCase().includes(searchTerm.toLowerCase());
+      (vehicle.allocatedTrainer && vehicle.allocatedTrainer.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesBrand = brandFilter === 'all' || vehicle.brand === brandFilter;
-    const matchesStatus = statusFilter === 'all' || vehicle.status === statusFilter;
+    const matchesLocation = locationFilter === 'all' || vehicle.academyLocation === locationFilter;
     
-    return matchesSearch && matchesBrand && matchesStatus;
+    return matchesSearch && matchesBrand && matchesLocation;
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -52,9 +141,19 @@ export function VehicleManagement() {
     
     try {
       if (editingVehicle) {
-        await updateVehicle(editingVehicle.id, vehicleForm);
+        setVehicles(prev => prev.map(v => 
+          v.id === editingVehicle.id 
+            ? { ...v, ...vehicleForm, updatedAt: new Date().toISOString() }
+            : v
+        ));
       } else {
-        await addVehicle(vehicleForm);
+        const newVehicle: Vehicle = {
+          id: Date.now().toString(),
+          ...vehicleForm,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        setVehicles(prev => [...prev, newVehicle]);
       }
       resetForm();
     } catch (error) {
@@ -64,17 +163,14 @@ export function VehicleManagement() {
 
   const handleEdit = (vehicle: Vehicle) => {
     setEditingVehicle(vehicle);
-    setVehicleForm(vehicle);
+    const { id, createdAt, updatedAt, ...formData } = vehicle;
+    setVehicleForm(formData);
     setIsDialogOpen(true);
   };
 
   const handleDelete = async (vehicleId: string) => {
     if (confirm('Are you sure you want to delete this vehicle?')) {
-      try {
-        await deleteVehicle(vehicleId);
-      } catch (error) {
-        console.error('Failed to delete vehicle:', error);
-      }
+      setVehicles(prev => prev.filter(v => v.id !== vehicleId));
     }
   };
 
@@ -84,59 +180,87 @@ export function VehicleManagement() {
     setIsDialogOpen(false);
   };
 
-  const getStatusBadgeVariant = (status: Vehicle['status']) => {
-    switch (status) {
-      case 'Available': return 'default';
-      case 'Booked': return 'secondary';
-      case 'Maintenance': return 'destructive';
-      case 'Out of Service': return 'outline';
-      default: return 'default';
+  const getInsuranceStatusBadge = (status: string) => {
+    return status === 'Valid' ? 'default' : 'destructive';
+  };
+
+  const getPucStatusBadge = (status: string) => {
+    if (status === 'Valid') return 'default';
+    if (status === 'Expired') return 'destructive';
+    return 'outline';
+  };
+
+  const getBrandColor = (brand: string) => {
+    switch (brand) {
+      case 'SA': return 'text-green-600';
+      case 'VW': return 'text-blue-600';
+      case 'AU': return 'text-red-600';
+      default: return 'text-gray-600';
     }
   };
 
-  const getBrandColor = (brand: Vehicle['brand']) => {
+  const getBrandName = (brand: string) => {
     switch (brand) {
-      case 'Skoda': return 'text-skoda';
-      case 'Volkswagen': return 'text-vw';
-      case 'Audi': return 'text-audi';
-      default: return 'text-foreground';
+      case 'SA': return 'Skoda';
+      case 'VW': return 'Volkswagen';
+      case 'AU': return 'Audi';
+      default: return brand;
     }
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col space-y-4 md:flex-row md:items-center md:justify-between md:space-y-0">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Vehicle Management</h1>
-          <p className="text-muted-foreground">Manage your fleet vehicles and their details</p>
+          <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">Fleet Vehicle Management</h1>
+          <p className="text-sm text-gray-600 mt-1">Manage your fleet vehicles, compliance, and trainer assignments</p>
         </div>
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => resetForm()} className="btn-skoda">
+            <Button onClick={() => resetForm()} className="bg-blue-600 hover:bg-blue-700 text-white">
               <Plus className="h-4 w-4 mr-2" />
               Add Vehicle
             </Button>
           </DialogTrigger>
           
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-xl">
                 {editingVehicle ? 'Edit Vehicle' : 'Add New Vehicle'}
               </DialogTitle>
               <DialogDescription>
-                {editingVehicle ? 'Update vehicle information' : 'Add a new vehicle to your fleet'}
+                {editingVehicle ? 'Update vehicle information and compliance details' : 'Add a new vehicle to your fleet with compliance tracking'}
               </DialogDescription>
             </DialogHeader>
             
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Basic Information */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="academyLocation">Academy Location</Label>
+                  <Select
+                    value={vehicleForm.academyLocation}
+                    onValueChange={(value: 'Pune' | 'VGTAP') => 
+                      setVehicleForm(prev => ({ ...prev, academyLocation: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Pune">Pune</SelectItem>
+                      <SelectItem value="VGTAP">VGTAP</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
                 <div className="space-y-2">
                   <Label htmlFor="brand">Brand</Label>
                   <Select
                     value={vehicleForm.brand}
-                    onValueChange={(value: Vehicle['brand']) => 
+                    onValueChange={(value: 'VW' | 'SA' | 'AU') => 
                       setVehicleForm(prev => ({ ...prev, brand: value }))
                     }
                   >
@@ -144,9 +268,9 @@ export function VehicleManagement() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Skoda">Skoda</SelectItem>
-                      <SelectItem value="Volkswagen">Volkswagen</SelectItem>
-                      <SelectItem value="Audi">Audi</SelectItem>
+                      <SelectItem value="SA">Skoda (SA)</SelectItem>
+                      <SelectItem value="VW">Volkswagen (VW)</SelectItem>
+                      <SelectItem value="AU">Audi (AU)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -157,156 +281,157 @@ export function VehicleManagement() {
                     id="model"
                     value={vehicleForm.model}
                     onChange={(e) => setVehicleForm(prev => ({ ...prev, model: e.target.value }))}
-                    placeholder="Enter model name"
+                    placeholder="e.g., Octavia, A4, Vento"
                     required
                   />
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
+              {/* Vehicle Details */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="year">Year</Label>
+                  <Label htmlFor="name">Vehicle Name/Description</Label>
                   <Input
-                    id="year"
-                    type="number"
-                    value={vehicleForm.year}
-                    onChange={(e) => setVehicleForm(prev => ({ ...prev, year: parseInt(e.target.value) }))}
-                    min="2000"
-                    max={new Date().getFullYear() + 1}
+                    id="name"
+                    value={vehicleForm.name}
+                    onChange={(e) => setVehicleForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="e.g., OCTAVIA ELE TS132/1.8A7F"
                     required
                   />
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="licensePlate">License Plate</Label>
+                  <Label htmlFor="vehicleRegNo">Vehicle Registration No.</Label>
                   <Input
-                    id="licensePlate"
-                    value={vehicleForm.licensePlate}
-                    onChange={(e) => setVehicleForm(prev => ({ ...prev, licensePlate: e.target.value }))}
-                    placeholder="XX-123-AB"
+                    id="vehicleRegNo"
+                    value={vehicleForm.vehicleRegNo}
+                    onChange={(e) => setVehicleForm(prev => ({ ...prev, vehicleRegNo: e.target.value.toUpperCase() }))}
+                    placeholder="e.g., MH14DX2031"
                     required
                   />
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="vin">VIN Number</Label>
-                  <Input
-                    id="vin"
-                    value={vehicleForm.vin}
-                    onChange={(e) => setVehicleForm(prev => ({ ...prev, vin: e.target.value }))}
-                    placeholder="17-character VIN"
-                    maxLength={17}
-                    required
-                  />
+              <div className="space-y-2">
+                <Label htmlFor="vinNo">VIN Number</Label>
+                <Input
+                  id="vinNo"
+                  value={vehicleForm.vinNo}
+                  onChange={(e) => setVehicleForm(prev => ({ ...prev, vinNo: e.target.value.toUpperCase() }))}
+                  placeholder="e.g., WVWJ11609CT011421"
+                  maxLength={17}
+                  required
+                />
+              </div>
+              
+              {/* Insurance Details */}
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-semibold mb-4">Insurance & Compliance</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="insuranceValidityDate">Insurance Validity Date</Label>
+                    <Input
+                      id="insuranceValidityDate"
+                      type="date"
+                      value={vehicleForm.insuranceValidityDate}
+                      onChange={(e) => setVehicleForm(prev => ({ ...prev, insuranceValidityDate: e.target.value }))}
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="insuranceStatus">Insurance Status</Label>
+                    <Select
+                      value={vehicleForm.insuranceStatus}
+                      onValueChange={(value: 'Valid' | 'Expired') => 
+                        setVehicleForm(prev => ({ ...prev, insuranceStatus: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Valid">Valid</SelectItem>
+                        <SelectItem value="Expired">Expired</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="color">Color</Label>
-                  <Input
-                    id="color"
-                    value={vehicleForm.color}
-                    onChange={(e) => setVehicleForm(prev => ({ ...prev, color: e.target.value }))}
-                    placeholder="Enter color"
-                    required
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="pucValidityDate">PUC Validity Date</Label>
+                    <Input
+                      id="pucValidityDate"
+                      type="date"
+                      value={vehicleForm.pucValidityDate}
+                      onChange={(e) => setVehicleForm(prev => ({ ...prev, pucValidityDate: e.target.value }))}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="pucStatus">PUC Status</Label>
+                    <Select
+                      value={vehicleForm.pucStatus}
+                      onValueChange={(value: 'Valid' | 'Expired' | 'NA') => 
+                        setVehicleForm(prev => ({ ...prev, pucStatus: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Valid">Valid</SelectItem>
+                        <SelectItem value="Expired">Expired</SelectItem>
+                        <SelectItem value="NA">Not Required</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fuelType">Fuel Type</Label>
-                  <Select
-                    value={vehicleForm.fuelType}
-                    onValueChange={(value: Vehicle['fuelType']) => 
-                      setVehicleForm(prev => ({ ...prev, fuelType: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Petrol">Petrol</SelectItem>
-                      <SelectItem value="Diesel">Diesel</SelectItem>
-                      <SelectItem value="Electric">Electric</SelectItem>
-                      <SelectItem value="Hybrid">Hybrid</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* Assignment & Status */}
+              <div className="border-t pt-4">
+                <h3 className="text-lg font-semibold mb-4">Assignment & Status</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="allocatedTrainer">Allocated Trainer</Label>
+                    <Input
+                      id="allocatedTrainer"
+                      value={vehicleForm.allocatedTrainer || ''}
+                      onChange={(e) => setVehicleForm(prev => ({ ...prev, allocatedTrainer: e.target.value }))}
+                      placeholder="e.g., Ranjeet Thorat"
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="dateDecommissioned">Date Decommissioned (if any)</Label>
+                    <Input
+                      id="dateDecommissioned"
+                      type="date"
+                      value={vehicleForm.dateDecommissioned || ''}
+                      onChange={(e) => setVehicleForm(prev => ({ ...prev, dateDecommissioned: e.target.value }))}
+                    />
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
-                  <Select
-                    value={vehicleForm.status}
-                    onValueChange={(value: Vehicle['status']) => 
-                      setVehicleForm(prev => ({ ...prev, status: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Available">Available</SelectItem>
-                      <SelectItem value="Booked">Booked</SelectItem>
-                      <SelectItem value="Maintenance">Maintenance</SelectItem>
-                      <SelectItem value="Out of Service">Out of Service</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="mileage">Mileage (km)</Label>
-                  <Input
-                    id="mileage"
-                    type="number"
-                    value={vehicleForm.mileage}
-                    onChange={(e) => setVehicleForm(prev => ({ ...prev, mileage: parseInt(e.target.value) || 0 }))}
-                    min="0"
-                    required
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="location">Location</Label>
-                  <Input
-                    id="location"
-                    value={vehicleForm.location}
-                    onChange={(e) => setVehicleForm(prev => ({ ...prev, location: e.target.value }))}
-                    placeholder="Garage A, Building 1, etc."
-                    required
+                <div className="space-y-2 mt-4">
+                  <Label htmlFor="remarks">Remarks</Label>
+                  <Textarea
+                    id="remarks"
+                    value={vehicleForm.remarks || ''}
+                    onChange={(e) => setVehicleForm(prev => ({ ...prev, remarks: e.target.value }))}
+                    placeholder="Additional notes, transfer details, maintenance status, etc."
+                    rows={3}
                   />
                 </div>
               </div>
               
-                 <div className="space-y-2">
-                   <Label htmlFor="lastService">Last Service Date</Label>
-                   <Input
-                     id="lastService"
-                     type="date"
-                     value={vehicleForm.lastService || ''}
-                     onChange={(e) => setVehicleForm(prev => ({ ...prev, lastService: e.target.value }))}
-                   />
-                 </div>
-              
-                 <div className="space-y-2">
-                   <Label htmlFor="notes">Notes</Label>
-                   <Textarea
-                     id="notes"
-                     value={vehicleForm.notes || ''}
-                     onChange={(e) => setVehicleForm(prev => ({ ...prev, notes: e.target.value }))}
-                     placeholder="Additional notes about the vehicle..."
-                     rows={3}
-                   />
-                 </div>
-              
-              <div className="flex justify-end space-x-2 pt-4">
+              <div className="flex justify-end space-x-2 pt-6 border-t">
                 <Button type="button" variant="outline" onClick={resetForm}>
                   Cancel
                 </Button>
-                <Button type="submit" className="btn-skoda">
+                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
                   {editingVehicle ? 'Update Vehicle' : 'Add Vehicle'}
                 </Button>
               </div>
@@ -316,20 +441,20 @@ export function VehicleManagement() {
       </div>
 
       {/* Filters and Search */}
-      <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
+      <Card className="shadow-sm border border-gray-200">
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center space-x-2 text-lg">
             <Filter className="h-5 w-5" />
             <span>Filter & Search</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col lg:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search by model, license plate, or VIN..."
+                  placeholder="Search by name, registration, VIN, trainer..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -338,86 +463,84 @@ export function VehicleManagement() {
             </div>
             
             <Select value={brandFilter} onValueChange={setBrandFilter}>
-              <SelectTrigger className="w-full sm:w-40">
+              <SelectTrigger className="w-full lg:w-40">
                 <SelectValue placeholder="All Brands" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Brands</SelectItem>
-                <SelectItem value="Skoda">Skoda</SelectItem>
-                <SelectItem value="Volkswagen">Volkswagen</SelectItem>
-                <SelectItem value="Audi">Audi</SelectItem>
+                <SelectItem value="SA">Skoda (SA)</SelectItem>
+                <SelectItem value="VW">Volkswagen (VW)</SelectItem>
+                <SelectItem value="AU">Audi (AU)</SelectItem>
               </SelectContent>
             </Select>
             
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="All Status" />
+            <Select value={locationFilter} onValueChange={setLocationFilter}>
+              <SelectTrigger className="w-full lg:w-40">
+                <SelectValue placeholder="All Locations" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="Available">Available</SelectItem>
-                <SelectItem value="Booked">Booked</SelectItem>
-                <SelectItem value="Maintenance">Maintenance</SelectItem>
-                <SelectItem value="Out of Service">Out of Service</SelectItem>
+                <SelectItem value="all">All Locations</SelectItem>
+                <SelectItem value="Pune">Pune</SelectItem>
+                <SelectItem value="VGTAP">VGTAP</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </CardContent>
       </Card>
 
-      {/* Vehicle Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="card-elevated">
+      {/* Fleet Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="shadow-sm border border-gray-200">
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Car className="h-6 w-6 text-primary" />
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Car className="h-6 w-6 text-blue-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Vehicles</p>
-                <p className="text-2xl font-bold">{vehicles.length}</p>
+                <p className="text-sm text-gray-600">Total Vehicles</p>
+                <p className="text-2xl font-bold text-gray-900">{vehicles.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="card-elevated">
+        <Card className="shadow-sm border border-gray-200">
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-success/10 rounded-lg">
-                <Car className="h-6 w-6 text-success" />
+              <div className="p-2 bg-green-100 rounded-lg">
+                <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Available</p>
-                <p className="text-2xl font-bold">{vehicles.filter(v => v.status === 'Available').length}</p>
+                <p className="text-sm text-gray-600">Insurance Valid</p>
+                <p className="text-2xl font-bold text-gray-900">{vehicles.filter(v => v.insuranceStatus === 'Valid').length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="card-elevated">
+        <Card className="shadow-sm border border-gray-200">
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-warning/10 rounded-lg">
-                <Car className="h-6 w-6 text-warning" />
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Booked</p>
-                <p className="text-2xl font-bold">{vehicles.filter(v => v.status === 'Booked').length}</p>
+                <p className="text-sm text-gray-600">Insurance Expired</p>
+                <p className="text-2xl font-bold text-gray-900">{vehicles.filter(v => v.insuranceStatus === 'Expired').length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="card-elevated">
+        <Card className="shadow-sm border border-gray-200">
           <CardContent className="p-6">
             <div className="flex items-center space-x-3">
-              <div className="p-2 bg-destructive/10 rounded-lg">
-                <Car className="h-6 w-6 text-destructive" />
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <Shield className="h-6 w-6 text-yellow-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Maintenance</p>
-                <p className="text-2xl font-bold">{vehicles.filter(v => v.status === 'Maintenance').length}</p>
+                <p className="text-sm text-gray-600">PUC Valid</p>
+                <p className="text-2xl font-bold text-gray-900">{vehicles.filter(v => v.pucStatus === 'Valid').length}</p>
               </div>
             </div>
           </CardContent>
@@ -425,9 +548,9 @@ export function VehicleManagement() {
       </div>
 
       {/* Vehicle Table */}
-      <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle>Fleet Vehicles</CardTitle>
+      <Card className="shadow-sm border border-gray-200">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg">Fleet Vehicles</CardTitle>
           <CardDescription>
             Showing {filteredVehicles.length} of {vehicles.length} vehicles
           </CardDescription>
@@ -436,48 +559,70 @@ export function VehicleManagement() {
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Vehicle</TableHead>
-                  <TableHead>License Plate</TableHead>
-                  <TableHead>VIN</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Mileage</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Actions</TableHead>
+                <TableRow className="bg-gray-50">
+                  <TableHead className="font-semibold">Vehicle Details</TableHead>
+                  <TableHead className="font-semibold">Registration & VIN</TableHead>
+                  <TableHead className="font-semibold">Insurance</TableHead>
+                  <TableHead className="font-semibold">PUC</TableHead>
+                  <TableHead className="font-semibold">Trainer</TableHead>
+                  <TableHead className="font-semibold">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredVehicles.map((vehicle) => (
-                  <TableRow key={vehicle.id} className="hover:bg-muted/50">
+                  <TableRow key={vehicle.id} className="hover:bg-gray-50">
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className={`font-semibold ${getBrandColor(vehicle.brand)}`}>
-                          {vehicle.brand}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          {vehicle.model} ({vehicle.year})
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {vehicle.color} • {vehicle.fuelType}
-                        </span>
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <span className={`font-semibold ${getBrandColor(vehicle.brand)}`}>
+                            {getBrandName(vehicle.brand)}
+                          </span>
+                          <Badge variant="outline" className="text-xs">{vehicle.academyLocation}</Badge>
+                        </div>
+                        <div className="text-sm font-medium text-gray-900">{vehicle.model}</div>
+                        <div className="text-xs text-gray-500">{vehicle.name}</div>
                       </div>
                     </TableCell>
-                    <TableCell className="font-mono">{vehicle.licensePlate}</TableCell>
-                    <TableCell className="font-mono text-xs">{vehicle.vin}</TableCell>
                     <TableCell>
-                      <Badge variant={getStatusBadgeVariant(vehicle.status)}>
-                        {vehicle.status}
-                      </Badge>
+                      <div className="space-y-1">
+                        <div className="font-mono font-medium text-sm">{vehicle.vehicleRegNo}</div>
+                        <div className="font-mono text-xs text-gray-500">{vehicle.vinNo}</div>
+                      </div>
                     </TableCell>
-                    <TableCell>{vehicle.mileage.toLocaleString()} km</TableCell>
-                    <TableCell>{vehicle.location}</TableCell>
                     <TableCell>
-                      <div className="flex space-x-2">
+                      <div className="space-y-1">
+                        <Badge variant={getInsuranceStatusBadge(vehicle.insuranceStatus)} className="text-xs">
+                          {vehicle.insuranceStatus}
+                        </Badge>
+                        <div className="text-xs text-gray-500">
+                          {new Date(vehicle.insuranceValidityDate).toLocaleDateString()}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <Badge variant={getPucStatusBadge(vehicle.pucStatus)} className="text-xs">
+                          {vehicle.pucStatus}
+                        </Badge>
+                        {vehicle.pucValidityDate && vehicle.pucStatus !== 'NA' && (
+                          <div className="text-xs text-gray-500">
+                            {new Date(vehicle.pucValidityDate).toLocaleDateString()}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-sm">
+                        {vehicle.allocatedTrainer || <span className="text-gray-400">Unassigned</span>}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex space-x-1">
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => handleEdit(vehicle)}
-                          className="hover-scale"
+                          className="h-8 w-8 p-0"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -485,7 +630,7 @@ export function VehicleManagement() {
                           size="sm"
                           variant="outline"
                           onClick={() => handleDelete(vehicle.id)}
-                          className="hover-scale text-destructive hover:text-destructive"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -498,7 +643,7 @@ export function VehicleManagement() {
             
             {filteredVehicles.length === 0 && (
               <div className="text-center py-8">
-                <p className="text-muted-foreground">No vehicles found matching your criteria.</p>
+                <p className="text-gray-500">No vehicles found matching your criteria.</p>
               </div>
             )}
           </div>

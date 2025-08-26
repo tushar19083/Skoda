@@ -1,4 +1,6 @@
 import { useLocation } from 'react-router-dom';
+import image from '@/assets/image.png'; // Ensure this path is correct
+
 import {
   BarChart3,
   Car,
@@ -8,7 +10,6 @@ import {
   FileText,
   Key,
   ArrowLeftRight,
-  BookOpen,
   Shield,
   Home
 } from 'lucide-react';
@@ -25,6 +26,7 @@ import {
   SidebarHeader,
   useSidebar,
 } from '@/components/ui/sidebar';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { UserRole } from '@/types/auth';
 
@@ -41,7 +43,7 @@ const navigationItems: Record<UserRole, Array<{
     { title: 'Vehicles', url: '/admin/vehicles', icon: Car, group: 'Management' },
     { title: 'Users', url: '/admin/users', icon: Users, group: 'Management' },
     { title: 'Bookings', url: '/admin/bookings', icon: Calendar, group: 'Management' },
-    { title: 'Service Records', url: '/admin/service', icon: Settings, group: 'Maintenance' },
+    { title: 'Service Records', url: '/admin/service-records', icon: Settings, group: 'Maintenance' },
     { title: 'Reports', url: '/admin/reports', icon: FileText, group: 'Reports' },
   ],
   trainer: [
@@ -79,13 +81,16 @@ export function AppSidebar() {
     <Sidebar className="border-r border-border">
       <SidebarHeader className="p-4 border-b border-border">
         <div className="flex items-center space-x-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <Car className="h-6 w-6 text-primary" />
-          </div>
-          {state === "expanded" && (
-            <div>
-              <h2 className="text-lg font-semibold">Skoda Fleet</h2>
-              <p className="text-sm text-muted-foreground capitalize">{user.role} Portal</p>
+          {state === 'expanded' && (
+            <div className="flex flex-col">
+              <img
+                src={image}
+                alt="Skoda Auto Volkswagen India Private Limited"
+                className="h-10 object-contain"
+              />
+              <p className="text-sm text-muted-foreground capitalize mt-1">
+                {user.role} Portal
+              </p>
             </div>
           )}
         </div>
@@ -94,7 +99,7 @@ export function AppSidebar() {
       <SidebarContent>
         {Object.entries(groupedItems).map(([groupName, groupItems]) => (
           <SidebarGroup key={groupName}>
-            {state === "expanded" && (
+            {state === 'expanded' && (
               <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 {groupName}
               </SidebarGroupLabel>
@@ -108,12 +113,18 @@ export function AppSidebar() {
                       isActive={isActive(item.url)}
                       className="nav-item"
                     >
-                      <a href={item.url} className="flex items-center space-x-3 p-3" onClick={(e) => {
-                        e.preventDefault();
-                        window.location.href = item.url;
-                      }}>
+                      <a
+                        href={item.url}
+                        className="flex items-center space-x-3 p-3"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          window.location.href = item.url;
+                        }}
+                      >
                         <item.icon className="h-5 w-5 flex-shrink-0" />
-                        {state === "expanded" && <span className="font-medium">{item.title}</span>}
+                        {state === 'expanded' && (
+                          <span className="font-medium">{item.title}</span>
+                        )}
                       </a>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

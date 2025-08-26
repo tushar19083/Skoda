@@ -131,7 +131,17 @@ export function SecurityDashboard() {
             <Shield className="h-4 w-4 mr-2" />
             Security Log
           </Button>
-          <Button className="bg-gradient-primary hover:bg-primary-hover">
+          <Button 
+            variant="outline"
+            onClick={() => window.location.href = '/security/returns'}
+          >
+            <ArrowLeftRight className="h-4 w-4 mr-2" />
+            Vehicle Returns
+          </Button>
+          <Button 
+            className="bg-gradient-primary hover:bg-primary-hover"
+            onClick={() => window.location.href = '/security/issue-keys'}
+          >
             <Key className="h-4 w-4 mr-2" />
             Issue Keys
           </Button>
