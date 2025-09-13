@@ -309,24 +309,6 @@ export function BookVehicle() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="urgency">Urgency</Label>
-                      <Select
-                        value={bookingForm.urgency}
-                        onValueChange={(value: 'normal' | 'high') => 
-                          setBookingForm(prev => ({ ...prev, urgency: value }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="normal">Normal</SelectItem>
-                          <SelectItem value="high">High Priority</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
                       <Label htmlFor="notes">Additional Notes</Label>
                       <Textarea
                         id="notes"

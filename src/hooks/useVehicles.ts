@@ -7,7 +7,7 @@ export interface Vehicle {
   brand: string;
   model: string;
   year: number;
-  licensePlate: string;
+  regNo: string;
   fuelType: string;
   mileage: number;
   location: string;
@@ -22,7 +22,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Skoda",
     model: "Octavia",
     year: 2022,
-    licensePlate: "MH12 AB 1234",
+    regNo: "MH12 AB 1234",
     fuelType: "Petrol",
     mileage: 15000,
     location: "Mumbai",
@@ -34,7 +34,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Skoda",
     model: "Superb",
     year: 2020,
-    licensePlate: "KA01 BB 9090",
+    regNo: "KA01 BB 9090",
     fuelType: "Petrol",
     mileage: 30000,
     location: "Bengaluru",
@@ -46,7 +46,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Skoda",
     model: "Kushaq",
     year: 2023,
-    licensePlate: "MH14 KL 2233",
+    regNo: "MH14 KL 2233",
     fuelType: "Petrol",
     mileage: 7000,
     location: "Pune",
@@ -58,7 +58,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Skoda",
     model: "Slavia",
     year: 2021,
-    licensePlate: "MH14JX5906",
+    regNo: "MH14JX5906",
     fuelType: "Diesel",
     mileage: 18000,
     location: "Pune",
@@ -72,7 +72,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Volkswagen",
     model: "Polo",
     year: 2021,
-    licensePlate: "MH14 XY 5678",
+    regNo: "MH14 XY 5678",
     fuelType: "Diesel",
     mileage: 22000,
     location: "Pune",
@@ -84,7 +84,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Volkswagen",
     model: "Tiguan",
     year: 2022,
-    licensePlate: "GJ01 CC 4455",
+    regNo: "GJ01 CC 4455",
     fuelType: "Diesel",
     mileage: 12000,
     location: "Ahmedabad",
@@ -96,7 +96,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Volkswagen",
     model: "Vento",
     year: 2019,
-    licensePlate: "KA05 VW 3344",
+    regNo: "KA05 VW 3344",
     fuelType: "Petrol",
     mileage: 40000,
     location: "Bengaluru",
@@ -108,7 +108,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Volkswagen",
     model: "Passat",
     year: 2020,
-    licensePlate: "RJ14 VW 9988",
+    regNo: "RJ14 VW 9988",
     fuelType: "Diesel",
     mileage: 28000,
     location: "Jaipur",
@@ -120,7 +120,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Volkswagen",
     model: "Taigun",
     year: 2023,
-    licensePlate: "DL2C VW 5566",
+    regNo: "DL2C VW 5566",
     fuelType: "Petrol",
     mileage: 6000,
     location: "Delhi",
@@ -134,7 +134,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Audi",
     model: "Q7",
     year: 2023,
-    licensePlate: "DL3C AA 4321",
+    regNo: "DL3C AA 4321",
     fuelType: "Petrol",
     mileage: 5000,
     location: "Delhi",
@@ -146,7 +146,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Audi",
     model: "A4",
     year: 2021,
-    licensePlate: "TN10 DD 7788",
+    regNo: "TN10 DD 7788",
     fuelType: "Petrol",
     mileage: 18000,
     location: "Chennai",
@@ -158,7 +158,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Audi",
     model: "Q5",
     year: 2022,
-    licensePlate: "MH01 AU 4455",
+    regNo: "MH01 AU 4455",
     fuelType: "Diesel",
     mileage: 14000,
     location: "Mumbai",
@@ -170,7 +170,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Audi",
     model: "A6",
     year: 2020,
-    licensePlate: "KL07 AU 7788",
+    regNo: "KL07 AU 7788",
     fuelType: "Petrol",
     mileage: 26000,
     location: "Kochi",
@@ -182,7 +182,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Audi",
     model: "E-tron",
     year: 2023,
-    licensePlate: "HR26 AU 1122",
+    regNo: "HR26 AU 1122",
     fuelType: "Electric",
     mileage: 3000,
     location: "Gurgaon",
@@ -194,7 +194,7 @@ const mockVehicles: Vehicle[] = [
     brand: "Audi",
     model: "RS5",
     year: 2022,
-    licensePlate: "WB20 RS 4455",
+    regNo: "WB20 RS 4455",
     fuelType: "Petrol",
     mileage: 10000,
     location: "Kolkata",
@@ -205,13 +205,18 @@ const mockVehicles: Vehicle[] = [
 
 export function useVehicles() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // simulate API call
-    setTimeout(() => {
+    const fetchVehicles = async () => {
+      setLoading(true);
+      await new Promise((res) => setTimeout(res, 500)); // Simulated delay
       setVehicles(mockVehicles);
-    }, 500);
+      setLoading(false);
+    };
+
+    fetchVehicles();
   }, []);
 
-  return { vehicles };
+  return { vehicles, loading };
 }

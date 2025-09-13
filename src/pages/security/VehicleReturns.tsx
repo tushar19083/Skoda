@@ -219,17 +219,6 @@ export function VehicleReturns() {
           </CardContent>
         </Card>
         
-        <Card className="card-elevated">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Damage Reports</p>
-                <p className="text-2xl font-bold text-orange-600">{mockStats.damageReports}</p>
-              </div>
-              <AlertTriangle className="h-8 w-8 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Filters */}
@@ -256,7 +245,6 @@ export function VehicleReturns() {
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="returned">Returned</SelectItem>
                   <SelectItem value="overdue">Overdue</SelectItem>
-                  <SelectItem value="damaged">Damaged</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -336,15 +324,6 @@ export function VehicleReturns() {
                             className="h-8"
                           >
                             {processingReturn === ret.id ? 'Processing...' : 'Process Return'}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleProcessReturn(ret.id, 'damaged', 50000, 'Damage reported')}
-                            disabled={processingReturn === ret.id}
-                            className="h-8"
-                          >
-                            Report Damage
                           </Button>
                         </div>
                       ) : (

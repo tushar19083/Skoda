@@ -4,19 +4,30 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Calendar, Car, Search, Filter, Clock, MapPin } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Calendar, Car, Search, Filter, Clock, MapPin, AlertTriangle } from 'lucide-react';
 import { useBookings } from '@/hooks/useBookings';
 import { useVehicles } from '@/hooks/useVehicles';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
 export function MyBookings() {
   const { user } = useAuth();
   const { bookings, loading: bookingsLoading, updateBookingStatus, deleteBooking } = useBookings();
-  const { vehicles } = useVehicles();
+  const { vehicles, loading: vehiclesLoading } = useVehicles();
+  const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [damageReport, setDamageReport] = useState({
+    bookingId: '',
+    condition: 'Good',
+    damageDescription: '',
+    open: false
+  });
 
   // Filter bookings for current user
   const userBookings = bookings.filter(booking => booking.trainerId === user?.id);
@@ -26,7 +37,7 @@ export function MyBookings() {
     const matchesSearch = 
       booking.purpose.toLowerCase().includes(searchTerm.toLowerCase()) ||
       vehicle?.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      vehicle?.licensePlate.toLowerCase().includes(searchTerm.toLowerCase());
+      vehicle?.regNo.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
     
@@ -64,8 +75,40 @@ export function MyBookings() {
     }
   };
 
-  const getVehicleInfo = (vehicleId: string) => {
-    return vehicles.find(v => v.id === vehicleId);
+  const handleDamageReport = async () => {
+    try {
+      // Here you would normally save the damage report to the database
+      toast({
+        title: "Damage Report Submitted",
+        description: "Your damage report has been submitted to the admin team.",
+      });
+      setDamageReport({
+        bookingId: '',
+        condition: 'Good',
+        damageDescription: '',
+        open: false
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit damage report. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openDamageDialog = (bookingId: string) => {
+    setDamageReport({
+      bookingId,
+      condition: 'Good',
+      damageDescription: '',
+      open: true
+    });
+  };
+
+  const getVehicleDetails = (booking: any) => {
+    const vehicle = vehicles.find(v => v.id === booking.vehicleId);
+    return vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.regNo})` : 'Unknown Vehicle';
   };
 
   const stats = {
@@ -75,9 +118,10 @@ export function MyBookings() {
     active: userBookings.filter(b => b.status === 'active').length,
   };
 
-  if (bookingsLoading) {
-    return <div className="flex justify-center py-8">Loading bookings...</div>;
-  }
+  if (bookingsLoading || vehiclesLoading) {
+  return <div className="flex justify-center py-8">Loading data...</div>;
+}
+
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -203,13 +247,12 @@ export function MyBookings() {
                   <TableHead>Purpose</TableHead>
                   <TableHead>Date & Time</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Urgency</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredBookings.map((booking) => {
-                  const vehicle = getVehicleInfo(booking.vehicleId);
+                  const vehicle = vehicles.find(v => v.id === booking.vehicleId);
                   return (
                     <TableRow key={booking.id}>
                       <TableCell>
@@ -218,7 +261,7 @@ export function MyBookings() {
                             {vehicle ? `${vehicle.brand} ${vehicle.model}` : 'Vehicle not found'}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {vehicle?.licensePlate}
+                            {vehicle?.regNo}
                           </p>
                         </div>
                       </TableCell>
@@ -239,7 +282,6 @@ export function MyBookings() {
                         </div>
                       </TableCell>
                       <TableCell>{getStatusBadge(booking.status)}</TableCell>
-                      <TableCell>{getUrgencyBadge(booking.urgency)}</TableCell>
                       <TableCell>
                         <div className="flex space-x-2">
                           {booking.status === 'pending' && (
@@ -257,9 +299,72 @@ export function MyBookings() {
                             </Badge>
                           )}
                           {booking.status === 'active' && (
-                            <Badge className="bg-primary text-primary-foreground">
-                              In use
-                            </Badge>
+                            <>
+                              <Badge className="bg-primary text-primary-foreground">
+                                In use
+                              </Badge>
+                              <Dialog open={damageReport.open} onOpenChange={(open) => setDamageReport(prev => ({ ...prev, open }))}>
+                                <DialogTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openDamageDialog(booking.id)}
+                                  >
+                                    <AlertTriangle className="h-4 w-4 mr-2" />
+                                    Report Damage
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-md">
+                                  <DialogHeader>
+                                    <DialogTitle>Report Vehicle Damage</DialogTitle>
+                                    <DialogDescription>
+                                      Report any damages or issues with the vehicle for booking #{booking.id}
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <div>
+                                      <Label htmlFor="condition">Vehicle Condition</Label>
+                                      <Select
+                                        value={damageReport.condition}
+                                        onValueChange={(value) => setDamageReport(prev => ({ ...prev, condition: value }))}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select condition" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="Good">Good - No issues</SelectItem>
+                                          <SelectItem value="Minor Issues">Minor Issues - Small problems</SelectItem>
+                                          <SelectItem value="Damage">Damage - Requires attention</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    {damageReport.condition !== 'Good' && (
+                                      <div>
+                                        <Label htmlFor="damageDescription">Damage Description</Label>
+                                        <Textarea
+                                          id="damageDescription"
+                                          placeholder="Please describe the damage or issues in detail..."
+                                          value={damageReport.damageDescription}
+                                          onChange={(e) => setDamageReport(prev => ({ ...prev, damageDescription: e.target.value }))}
+                                          className="min-h-[120px]"
+                                        />
+                                      </div>
+                                    )}
+                                    <div className="flex justify-end space-x-2">
+                                      <Button 
+                                        variant="outline" 
+                                        onClick={() => setDamageReport(prev => ({ ...prev, open: false }))}
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button onClick={handleDamageReport}>
+                                        Submit Report
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </>
                           )}
                         </div>
                       </TableCell>

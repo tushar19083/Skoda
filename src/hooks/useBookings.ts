@@ -17,7 +17,6 @@ export interface Booking {
     | "active"
     | "completed"
     | "cancelled";
-  urgency: "normal" | "high";
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -26,32 +25,69 @@ export interface Booking {
 // ---- Mock data (instead of DB) ----
 const initialBookings: Booking[] = [
   {
-    id: "1",
-    vehicleId: "V001",
-    trainerId: "T001",
-    trainerName: "John Doe",
-    startDate: "2025-08-25",
-    endDate: "2025-08-27",
-    purpose: "Driver Training",
-    status: "approved",
-    urgency: "normal",
-    notes: "Handle with care",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    id: 'booking_001',
+    vehicleId: '1',
+    trainerId: '2',
+    trainerName: 'Sarah Trainer',
+    startDate: '2025-01-08T09:00:00Z',
+    endDate: '2025-01-08T17:00:00Z',
+    purpose: 'DSG Transmission Training',
+    status: 'active',
+    notes: 'Focus on DQ200 dual clutch system',
+    createdAt: '2025-01-07T10:00:00Z',
+    updatedAt: '2025-01-07T10:00:00Z'
   },
   {
-    id: "2",
-    vehicleId: "V002",
-    trainerId: "T002",
-    trainerName: "Jane Smith",
-    startDate: "2025-08-26",
-    endDate: "2025-08-28",
-    purpose: "Security Patrol",
-    status: "pending",
-    urgency: "high",
-    notes: null,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    id: 'booking_002',
+    vehicleId: '2',
+    trainerId: '2',
+    trainerName: 'Sarah Trainer',
+    startDate: '2025-01-09T14:00:00Z',
+    endDate: '2025-01-09T18:00:00Z',
+    purpose: 'Advanced TDI Engine Diagnostics',
+    status: 'approved',
+    notes: 'Training session for new diagnostic procedures',
+    createdAt: '2025-01-06T15:30:00Z',
+    updatedAt: '2025-01-07T09:15:00Z'
+  },
+  {
+    id: 'booking_003',
+    vehicleId: '3',
+    trainerId: '2',
+    trainerName: 'Sarah Trainer',
+    startDate: '2025-01-10T10:00:00Z',
+    endDate: '2025-01-10T16:00:00Z',
+    purpose: 'Tiguan AllSpace Feature Training',
+    status: 'pending',
+    notes: 'Complete vehicle systems overview',
+    createdAt: '2025-01-05T11:00:00Z',
+    updatedAt: '2025-01-05T11:00:00Z'
+  },
+  {
+    id: 'booking_004',
+    vehicleId: '5',
+    trainerId: '2',
+    trainerName: 'Sarah Trainer',
+    startDate: '2025-01-04T09:00:00Z',
+    endDate: '2025-01-04T17:00:00Z',
+    purpose: 'Taigun Technology Workshop',
+    status: 'completed',
+    notes: 'Successfully completed all training modules',
+    createdAt: '2025-01-03T14:00:00Z',
+    updatedAt: '2025-01-04T17:30:00Z'
+  },
+  {
+    id: 'booking_005',
+    vehicleId: '1',
+    trainerId: '2',
+    trainerName: 'Sarah Trainer',
+    startDate: '2025-01-12T08:00:00Z',
+    endDate: '2025-01-12T12:00:00Z',
+    purpose: 'Emergency Brake System Testing',
+    status: 'active',
+    notes: 'Critical safety system validation required',
+    createdAt: '2025-01-06T16:45:00Z',
+    updatedAt: '2025-01-08T08:00:00Z'
   },
 ];
 

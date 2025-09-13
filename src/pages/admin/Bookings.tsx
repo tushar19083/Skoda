@@ -20,7 +20,6 @@ interface Booking {
   duration: string;
   status: 'pending' | 'approved' | 'active' | 'completed' | 'cancelled';
   purpose: string;
-  urgency: 'low' | 'medium' | 'high';
   notes?: string;
   createdAt: string;
 }
@@ -37,7 +36,6 @@ const mockBookings: Booking[] = [
     duration: '2 hours',
     status: 'active',
     purpose: 'Practical Driving Test',
-    urgency: 'high',
     notes: 'Student final exam preparation',
     createdAt: '2024-01-15'
   },
@@ -52,7 +50,6 @@ const mockBookings: Booking[] = [
     duration: '3 hours',
     status: 'approved',
     purpose: 'Highway Training',
-    urgency: 'medium',
     notes: 'Advanced highway driving practice',
     createdAt: '2024-01-15'
   },
@@ -67,7 +64,6 @@ const mockBookings: Booking[] = [
     duration: '1.5 hours',
     status: 'completed',
     purpose: 'City Driving Practice',
-    urgency: 'low',
     notes: 'Basic city navigation training',
     createdAt: '2024-01-14'
   },
@@ -82,7 +78,6 @@ const mockBookings: Booking[] = [
     duration: '2.5 hours',
     status: 'pending',
     purpose: 'Parallel Parking Training',
-    urgency: 'medium',
     notes: 'Focus on advanced parking maneuvers',
     createdAt: '2024-01-15'
   },
@@ -97,7 +92,6 @@ const mockBookings: Booking[] = [
     duration: '4 hours',
     status: 'approved',
     purpose: 'Long Distance Training',
-    urgency: 'low',
     notes: 'Interstate highway practice',
     createdAt: '2024-01-15'
   },
@@ -112,7 +106,6 @@ const mockBookings: Booking[] = [
     duration: '1 hour',
     status: 'cancelled',
     purpose: 'Emergency Brake Training',
-    urgency: 'high',
     notes: 'Cancelled due to weather conditions',
     createdAt: '2024-01-13'
   }
@@ -134,7 +127,6 @@ export function Bookings() {
       booking.licensePlate.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesStatus = statusFilter === 'all' || booking.status === statusFilter;
-    const matchesUrgency = urgencyFilter === 'all' || booking.urgency === urgencyFilter;
     
     let matchesDate = true;
     if (dateFilter !== 'all') {
@@ -154,7 +146,7 @@ export function Bookings() {
       }
     }
     
-    return matchesSearch && matchesStatus && matchesUrgency && matchesDate;
+    return matchesSearch && matchesStatus && matchesDate;
   });
 
   const handleStatusChange = async (bookingId: string, newStatus: Booking['status']) => {
@@ -180,7 +172,7 @@ export function Bookings() {
       case 'pending':
         return <Badge variant="outline" className="border-warning text-warning">Pending</Badge>;
       case 'approved':
-        return <Badge className="bg-primary text-primary-foreground">Approved</Badge>;
+        return <Badge className="bg-orange-500 text-primary-foreground">Approved</Badge>;
       case 'active':
         return <Badge className="bg-success text-success-foreground">Active</Badge>;
       case 'completed':
@@ -189,19 +181,6 @@ export function Bookings() {
         return <Badge variant="destructive">Cancelled</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getUrgencyBadge = (urgency: Booking['urgency']) => {
-    switch (urgency) {
-      case 'high':
-        return <Badge variant="destructive">High</Badge>;
-      case 'medium':
-        return <Badge className="bg-warning text-warning-foreground">Medium</Badge>;
-      case 'low':
-        return <Badge variant="outline">Low</Badge>;
-      default:
-        return <Badge variant="outline">{urgency}</Badge>;
     }
   };
 
@@ -292,18 +271,6 @@ export function Bookings() {
               </SelectContent>
             </Select>
             
-            <Select value={urgencyFilter} onValueChange={setUrgencyFilter}>
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="All Urgency" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Urgency</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-              </SelectContent>
-            </Select>
-            
             <Select value={dateFilter} onValueChange={setDateFilter}>
               <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="All Dates" />
@@ -337,7 +304,6 @@ export function Bookings() {
                   <TableHead>Date & Time</TableHead>
                   <TableHead>Purpose</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Urgency</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -377,7 +343,6 @@ export function Bookings() {
                       </div>
                     </TableCell>
                     <TableCell>{getStatusBadge(booking.status)}</TableCell>
-                    <TableCell>{getUrgencyBadge(booking.urgency)}</TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
                         {booking.status === 'pending' && (

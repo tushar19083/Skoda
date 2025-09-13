@@ -18,7 +18,6 @@ const mockPendingKeyRequests = [
     trainer: 'Sarah Thompson',
     requestTime: '09:15',
     purpose: 'Advanced Driving',
-    urgency: 'normal'
   },
   {
     id: '2',
@@ -26,7 +25,6 @@ const mockPendingKeyRequests = [
     trainer: 'Mike Johnson',
     requestTime: '09:45',
     purpose: 'Emergency Training',
-    urgency: 'high'
   },
   {
     id: '3',
@@ -34,7 +32,6 @@ const mockPendingKeyRequests = [
     trainer: 'Emma Wilson',
     requestTime: '10:30',
     purpose: 'Standard Session',
-    urgency: 'normal'
   },
 ];
 
@@ -77,18 +74,6 @@ const mockSecurityAlerts = [
 ];
 
 export function SecurityDashboard() {
-  const getUrgencyBadge = (urgency: string) => {
-    switch (urgency) {
-      case 'high':
-        return <Badge variant="destructive">High</Badge>;
-      case 'medium':
-        return <Badge className="bg-warning text-warning-foreground">Medium</Badge>;
-      case 'normal':
-        return <Badge variant="outline">Normal</Badge>;
-      default:
-        return <Badge variant="outline">{urgency}</Badge>;
-    }
-  };
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -208,7 +193,6 @@ export function SecurityDashboard() {
                     </p>
                   </div>
                   <div className="flex flex-col items-end space-y-2">
-                    {getUrgencyBadge(request.urgency)}
                     <Button size="sm" className="h-7">
                       Issue Key
                     </Button>

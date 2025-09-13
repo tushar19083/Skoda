@@ -37,7 +37,6 @@ const mockBookings = [
     vehicleId: '1', 
     trainerName: 'John Smith', 
     purpose: 'Highway driving lesson', 
-    urgency: 'high',
     status: 'approved',
     startDate: '2024-01-15T09:00:00',
     endDate: '2024-01-15T17:00:00',
@@ -48,7 +47,6 @@ const mockBookings = [
     vehicleId: '2', 
     trainerName: 'Sarah Johnson', 
     purpose: 'Parallel parking practice', 
-    urgency: 'normal',
     status: 'approved',
     startDate: '2024-01-15T10:00:00',
     endDate: '2024-01-15T16:00:00',
@@ -59,7 +57,6 @@ const mockBookings = [
     vehicleId: '3', 
     trainerName: 'Mike Davis', 
     purpose: 'City driving experience', 
-    urgency: 'high',
     status: 'approved',
     startDate: '2024-01-16T08:00:00',
     endDate: '2024-01-16T18:00:00',
@@ -70,7 +67,6 @@ const mockBookings = [
     vehicleId: '4', 
     trainerName: 'Emma Wilson', 
     purpose: 'Night driving lesson', 
-    urgency: 'normal',
     status: 'approved',
     startDate: '2024-01-17T18:00:00',
     endDate: '2024-01-17T22:00:00',
@@ -81,7 +77,6 @@ const mockBookings = [
     vehicleId: '5', 
     trainerName: 'Alex Brown', 
     purpose: 'Final exam preparation', 
-    urgency: 'high',
     status: 'approved',
     startDate: '2024-01-18T09:00:00',
     endDate: '2024-01-18T15:00:00',
@@ -126,7 +121,6 @@ export function IssueKeys() {
                        booking.purpose.toLowerCase().includes(searchTerm.toLowerCase());
     
     if (statusFilter === 'all') return searchMatch;
-    if (statusFilter === 'high-urgency') return searchMatch && booking.urgency === 'high';
     return searchMatch;
   });
 
@@ -134,11 +128,6 @@ export function IssueKeys() {
     return mockVehicles.find(v => v.id === vehicleId);
   };
 
-  const getUrgencyBadge = (urgency: string) => {
-    return urgency === 'high' 
-      ? <Badge variant="destructive" className="flex items-center gap-1"><AlertTriangle className="h-3 w-3" />High Priority</Badge>
-      : <Badge variant="outline">Normal</Badge>;
-  };
 
   const handleIssueKey = (booking: any) => {
     setSelectedBooking(booking);
@@ -199,7 +188,6 @@ export function IssueKeys() {
 
   const stats = {
     pendingIssues: filteredBookings.length,
-    highPriority: filteredBookings.filter(b => b.urgency === 'high').length,
     activeKeys: keyIssues.filter(k => k.status === 'issued').length,
     overdueKeys: keyIssues.filter(k => k.status === 'overdue').length,
   };
@@ -240,16 +228,7 @@ export function IssueKeys() {
           </CardContent>
         </Card>
         
-        <Card className="card-elevated border-warning">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">High Priority</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-warning" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-warning">{stats.highPriority}</div>
-            <p className="text-xs text-muted-foreground">Urgent requests</p>
-          </CardContent>
-        </Card>
+      
 
         <Card className="card-elevated">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -299,7 +278,6 @@ export function IssueKeys() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Requests</SelectItem>
-                <SelectItem value="high-urgency">High Priority Only</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -341,7 +319,6 @@ export function IssueKeys() {
                           <h3 className="font-semibold">
                             {vehicle ? `${vehicle.brand} ${vehicle.model} - ${vehicle.licensePlate}` : 'Unknown Vehicle'}
                           </h3>
-                          {getUrgencyBadge(booking.urgency)}
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <div className="flex items-center gap-1">
