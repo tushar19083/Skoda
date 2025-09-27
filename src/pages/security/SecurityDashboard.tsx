@@ -250,47 +250,6 @@ export function SecurityDashboard() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Security Alerts */}
-      <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <AlertCircle className="h-5 w-5" />
-            <span>Security Alerts</span>
-          </CardTitle>
-          <CardDescription>
-            Important security notifications and incidents
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {mockSecurityAlerts.map((alert) => (
-              <div
-                key={alert.id}
-                className="flex items-center justify-between p-4 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <p className="font-medium">{alert.type}</p>
-                    {getSeverityBadge(alert.severity)}
-                  </div>
-                  <p className="text-sm text-muted-foreground">{alert.vehicle}</p>
-                  <p className="text-sm">{alert.description}</p>
-                  <p className="text-xs text-muted-foreground">Time: {alert.time}</p>
-                </div>
-                <div className="flex space-x-2">
-                  <Button size="sm" variant="outline">
-                    Investigate
-                  </Button>
-                  <Button size="sm">
-                    <CheckCircle className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
