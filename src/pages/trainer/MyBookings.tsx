@@ -26,6 +26,7 @@ export function MyBookings() {
     bookingId: '',
     condition: 'Good',
     damageDescription: '',
+    partsRequest: '',
     open: false
   });
 
@@ -49,11 +50,11 @@ export function MyBookings() {
       case 'pending':
         return <Badge variant="outline">Pending</Badge>;
       case 'approved':
-        return <Badge className="bg-success text-success-foreground">Approved</Badge>;
+        return <Badge className="bg-orange-500 text-primary-foreground">Approved</Badge>;
       case 'rejected':
         return <Badge variant="destructive">Rejected</Badge>;
       case 'active':
-        return <Badge className="bg-primary text-primary-foreground">Active</Badge>;
+        return <Badge className="bg-primary text-primary-foreground">In use</Badge>;
       case 'completed':
         return <Badge variant="secondary">Completed</Badge>;
       case 'cancelled':
@@ -63,11 +64,6 @@ export function MyBookings() {
     }
   };
 
-  const getUrgencyBadge = (urgency: string) => {
-    return urgency === 'high' ? 
-      <Badge variant="destructive">High</Badge> : 
-      <Badge variant="outline">Normal</Badge>;
-  };
 
   const handleCancelBooking = async (bookingId: string) => {
     if (confirm('Are you sure you want to cancel this booking?')) {
@@ -77,7 +73,7 @@ export function MyBookings() {
 
   const handleDamageReport = async () => {
     try {
-      // Here you would normally save the damage report to the database
+       // Normally save damage report + requested parts to DB
       toast({
         title: "Damage Report Submitted",
         description: "Your damage report has been submitted to the admin team.",
@@ -86,6 +82,7 @@ export function MyBookings() {
         bookingId: '',
         condition: 'Good',
         damageDescription: '',
+        partsRequest: '',
         open: false
       });
     } catch (error) {
@@ -102,14 +99,15 @@ export function MyBookings() {
       bookingId,
       condition: 'Good',
       damageDescription: '',
+      partsRequest: '',
       open: true
     });
   };
 
-  const getVehicleDetails = (booking: any) => {
-    const vehicle = vehicles.find(v => v.id === booking.vehicleId);
-    return vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.regNo})` : 'Unknown Vehicle';
-  };
+  // const getVehicleDetails = (booking: any) => {
+  //   const vehicle = vehicles.find(v => v.id === booking.vehicleId);
+  //   return vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.regNo})` : 'Unknown Vehicle';
+  // };
 
   const stats = {
     total: userBookings.length,
@@ -299,10 +297,6 @@ export function MyBookings() {
                             </Badge>
                           )}
                           {booking.status === 'active' && (
-                            <>
-                              <Badge className="bg-primary text-primary-foreground">
-                                In use
-                              </Badge>
                               <Dialog open={damageReport.open} onOpenChange={(open) => setDamageReport(prev => ({ ...prev, open }))}>
                                 <DialogTrigger asChild>
                                   <Button
@@ -311,14 +305,14 @@ export function MyBookings() {
                                     onClick={() => openDamageDialog(booking.id)}
                                   >
                                     <AlertTriangle className="h-4 w-4 mr-2" />
-                                    Report Damage
+                                    Report Damage / Request Parts
                                   </Button>
                                 </DialogTrigger>
                                 <DialogContent className="sm:max-w-md">
                                   <DialogHeader>
-                                    <DialogTitle>Report Vehicle Damage</DialogTitle>
+                                    <DialogTitle>Report Vehicle Damage / Request Parts</DialogTitle>
                                     <DialogDescription>
-                                      Report any damages or issues with the vehicle for booking #{booking.id}
+                                      Report damages or request replacement parts for booking #{booking.id}
                                     </DialogDescription>
                                   </DialogHeader>
                                   <div className="space-y-4">
@@ -350,6 +344,21 @@ export function MyBookings() {
                                         />
                                       </div>
                                     )}
+                                    <div>
+                                      <Label htmlFor="partsRequest">Request Parts</Label>
+                                      <Textarea
+                                        id="partsRequest"
+                                        placeholder="List the parts you want to request (e.g., tires, mirrors, etc.)"
+                                        value={damageReport.partsRequest}
+                                        onChange={e =>
+                                          setDamageReport(prev => ({
+                                            ...prev,
+                                            partsRequest: e.target.value,
+                                          }))
+                                        }
+                                        className="min-h-[80px]"
+                                      />
+                                    </div>
                                     <div className="flex justify-end space-x-2">
                                       <Button 
                                         variant="outline" 
@@ -364,7 +373,7 @@ export function MyBookings() {
                                   </div>
                                 </DialogContent>
                               </Dialog>
-                            </>
+                            
                           )}
                         </div>
                       </TableCell>
