@@ -104,11 +104,6 @@ export function MyBookings() {
     });
   };
 
-  // const getVehicleDetails = (booking: any) => {
-  //   const vehicle = vehicles.find(v => v.id === booking.vehicleId);
-  //   return vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.regNo})` : 'Unknown Vehicle';
-  // };
-
   const stats = {
     total: userBookings.length,
     pending: userBookings.filter(b => b.status === 'pending').length,
@@ -131,7 +126,7 @@ export function MyBookings() {
             Manage your vehicle reservations and training sessions
           </p>
         </div>
-        <Button className="btn-skoda">
+        <Button className="btn-skoda" onClick={() => window.location.href = '/trainer/book'}>
           <Calendar className="h-4 w-4 mr-2" />
           New Booking
         </Button>

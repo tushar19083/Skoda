@@ -88,19 +88,6 @@ export function SecurityDashboard() {
     }
   };
 
-  const getSeverityBadge = (severity: string) => {
-    switch (severity) {
-      case 'high':
-        return <Badge variant="destructive">High</Badge>;
-      case 'medium':
-        return <Badge className="bg-warning text-warning-foreground">Medium</Badge>;
-      case 'low':
-        return <Badge variant="outline">Low</Badge>;
-      default:
-        return <Badge variant="outline">{severity}</Badge>;
-    }
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}

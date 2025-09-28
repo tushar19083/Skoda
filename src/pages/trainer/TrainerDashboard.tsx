@@ -100,7 +100,7 @@ export function TrainerDashboard() {
             Manage your vehicle bookings and training sessions
           </p>
         </div>
-        <Button className="bg-gradient-primary hover:bg-primary-hover">
+        <Button className="bg-gradient-primary hover:bg-primary-hover" onClick={() => window.location.href = '/trainer/book'}>
           <Car className="h-4 w-4 mr-2" />
           Book Vehicle
         </Button>
