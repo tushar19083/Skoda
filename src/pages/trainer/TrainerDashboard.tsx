@@ -181,70 +181,7 @@ export function TrainerDashboard() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Quick Book Actions */}
-        {/* <Card className="card-elevated">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5" />
-              <span>Quick Book</span>
-            </CardTitle>
-            <CardDescription>
-              Fast vehicle reservation by brand
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {mockQuickActions.map((action, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  className={`w-full justify-start h-auto p-4 ${getBrandButton(action.brand)}`}
-                >
-                  <div className="text-left">
-                    <p className="font-medium">{action.title}</p>
-                    <p className="text-xs opacity-80">{action.description}</p>
-                  </div>
-                </Button>
-              ))}
-            </div>
-            <div className="mt-4 pt-4 border-t">
-              <Button variant="ghost" className="w-full">
-                Advanced Booking
-              </Button>
-            </div>
-          </CardContent>
-        </Card> */}
       </div>
-
-      {/* Training Progress */}
-      {/* <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <BookOpen className="h-5 w-5" />
-            <span>Training Progress</span>
-          </CardTitle>
-          <CardDescription>
-            Your training activities and achievements
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-primary">85%</p>
-              <p className="text-sm text-muted-foreground">Course Completion</p>
-            </div>
-            <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-primary">4.8</p>
-              <p className="text-sm text-muted-foreground">Average Rating</p>
-            </div>
-            <div className="text-center p-4 bg-muted/50 rounded-lg">
-              <p className="text-2xl font-bold text-primary">156</p>
-              <p className="text-sm text-muted-foreground">Total Hours</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card> */}
     </div>
   );
 }

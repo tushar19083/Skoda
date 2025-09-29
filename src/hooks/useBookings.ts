@@ -1,6 +1,7 @@
 // src/hooks/useBookings.ts
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { AcademyLocation } from "@/constants/locations";
 
 export interface Booking {
   id: string;
@@ -10,6 +11,7 @@ export interface Booking {
   startDate: string;
   endDate: string;
   purpose: string;
+  requestedLocation: AcademyLocation;
   status:
     | "pending"
     | "approved"
@@ -32,6 +34,7 @@ const initialBookings: Booking[] = [
     startDate: '2025-01-08T09:00:00Z',
     endDate: '2025-01-08T17:00:00Z',
     purpose: 'DSG Transmission Training',
+    requestedLocation: 'Pune',
     status: 'active',
     notes: 'Focus on DQ200 dual clutch system',
     createdAt: '2025-01-07T10:00:00Z',
@@ -45,6 +48,7 @@ const initialBookings: Booking[] = [
     startDate: '2025-01-09T14:00:00Z',
     endDate: '2025-01-09T18:00:00Z',
     purpose: 'Advanced TDI Engine Diagnostics',
+    requestedLocation: 'Pune',
     status: 'approved',
     notes: 'Training session for new diagnostic procedures',
     createdAt: '2025-01-06T15:30:00Z',
@@ -58,6 +62,7 @@ const initialBookings: Booking[] = [
     startDate: '2025-01-10T10:00:00Z',
     endDate: '2025-01-10T16:00:00Z',
     purpose: 'Tiguan AllSpace Feature Training',
+    requestedLocation: 'Pune',
     status: 'pending',
     notes: 'Complete vehicle systems overview',
     createdAt: '2025-01-05T11:00:00Z',
@@ -71,6 +76,7 @@ const initialBookings: Booking[] = [
     startDate: '2025-01-04T09:00:00Z',
     endDate: '2025-01-04T17:00:00Z',
     purpose: 'Taigun Technology Workshop',
+    requestedLocation: 'Pune',
     status: 'completed',
     notes: 'Successfully completed all training modules',
     createdAt: '2025-01-03T14:00:00Z',
@@ -84,6 +90,7 @@ const initialBookings: Booking[] = [
     startDate: '2025-01-12T08:00:00Z',
     endDate: '2025-01-12T12:00:00Z',
     purpose: 'Emergency Brake System Testing',
+    requestedLocation: 'Pune',
     status: 'active',
     notes: 'Critical safety system validation required',
     createdAt: '2025-01-06T16:45:00Z',

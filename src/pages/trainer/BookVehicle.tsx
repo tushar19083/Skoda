@@ -6,40 +6,41 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Car, Calendar, Clock } from 'lucide-react';
+import { ArrowLeft, Car, Calendar, Clock, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useVehicles } from '@/hooks/useVehicles';
 import { useBookings } from '@/hooks/useBookings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { ACADEMY_LOCATIONS, LOCATION_OPTIONS, LOCATION_DETAILS, AcademyLocation } from '@/constants/locations';
 import SkodaLogo from '@/assets/skodalogo.png';
 import VWLogo from '@/assets/vw.png';
 import AudiLogo from '@/assets/audi.png';
 
 
 
-type BookingStep = 'brand' | 'vehicle' | 'details' | 'confirmation';
+type BookingStep = 'location' | 'brand' | 'vehicle' | 'details' | 'confirmation';
 
 export function BookVehicle() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { vehicles, loading: vehiclesLoading } = useVehicles();
+  const { vehicles, isLoading: vehiclesLoading } = useVehicles();
   const { createBooking } = useBookings();
   const { toast } = useToast();
 
-  const [currentStep, setCurrentStep] = useState<BookingStep>('brand');
+  const [currentStep, setCurrentStep] = useState<BookingStep>('location');
+  const [selectedLocation, setSelectedLocation] = useState<AcademyLocation | ''>('');
   const [selectedBrand, setSelectedBrand] = useState<string>('');
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
   const [bookingForm, setBookingForm] = useState({
     startDate: '',
     endDate: '',
     purpose: '',
-    urgency: 'normal' as 'normal' | 'high',
     notes: ''
   });
 
   const availableVehicles = vehicles.filter(
-    v => v.brand === selectedBrand && v.status === 'Available'
+    v => v.brand === selectedBrand && v.status === 'Available' && v.location === selectedLocation
   );
 
   const selectedVehicleData = vehicles.find(v => v.id === selectedVehicle);
@@ -56,6 +57,13 @@ export function BookVehicle() {
       return '';
   }
 };
+
+  const handleLocationSelect = (location: AcademyLocation) => {
+    setSelectedLocation(location);
+    setSelectedBrand('');
+    setSelectedVehicle('');
+    setCurrentStep('brand');
+  };
 
   const handleBrandSelect = (brand: string) => {
     setSelectedBrand(brand);
@@ -81,8 +89,8 @@ export function BookVehicle() {
         startDate: bookingForm.startDate,
         endDate: bookingForm.endDate,
         purpose: bookingForm.purpose,
+        requestedLocation: selectedLocation,
         status: 'pending',
-        urgency: bookingForm.urgency,
         notes: bookingForm.notes,
       });
 
@@ -94,6 +102,53 @@ export function BookVehicle() {
 
   const renderStepContent = () => {
     switch (currentStep) {
+      case 'location':
+        return (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold mb-2">Select Training Location</h2>
+              <p className="text-muted-foreground">Choose the academy location where you need the vehicle</p>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-4">
+              {LOCATION_OPTIONS.map((location) => {
+                const details = LOCATION_DETAILS[location as AcademyLocation];
+                return (
+                  <Card
+                    key={location}
+                    className={`cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-[1.02] ${
+                      selectedLocation === location ? 'ring-2 ring-primary shadow-lg scale-[1.02]' : ''
+                    }`}
+                    onClick={() => handleLocationSelect(location as AcademyLocation)}
+                  >
+                    <CardContent className="p-6 text-center">
+                      <div className="flex flex-col items-center space-y-3">
+                        <div className="p-3 bg-primary/10 rounded-full">
+                          <MapPin className="h-8 w-8 text-primary" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-lg">{details.fullName}</h3>
+                          <p className="text-sm text-muted-foreground mt-1">{details.region} Region</p>
+                          <Badge variant="outline" className="mt-2">{details.code}</Badge>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+            
+            {selectedLocation && (
+              <div className="text-center pt-4">
+                <Button onClick={() => setCurrentStep('brand')} className="btn-professional">
+                  Continue to Brand Selection
+                  <ArrowLeft className="ml-2 h-4 w-4 rotate-180" />
+                </Button>
+              </div>
+            )}
+          </div>
+        );
+        
       case 'brand':
         return (
           <div className="space-y-6">
@@ -167,7 +222,7 @@ export function BookVehicle() {
                       <div className="space-y-2">
                         <div className="flex justify-between">
                           <span className="text-sm">License:</span>
-                          <span className="text-sm font-medium">{vehicle.licensePlate}</span>
+                          <span className="text-sm font-medium">{vehicle.regNo}</span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm">Fuel:</span>
@@ -246,7 +301,7 @@ export function BookVehicle() {
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
                           <span className="text-muted-foreground">License Plate:</span>
-                          <p className="font-medium">{selectedVehicleData.licensePlate}</p>
+                          <p className="font-medium">{selectedVehicleData.regNo}</p>
                         </div>
                         <div>
                           <span className="text-muted-foreground">Fuel Type:</span>
@@ -357,7 +412,6 @@ export function BookVehicle() {
                       startDate: '',
                       endDate: '',
                       purpose: '',
-                      urgency: 'normal',
                       notes: ''
                     });
                   }}

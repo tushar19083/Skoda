@@ -112,7 +112,7 @@ export function SecurityDashboard() {
           </Button>
           <Button 
             className="bg-gradient-primary hover:bg-primary-hover"
-            onClick={() => window.location.href = '/security/issue-keys'}
+            onClick={() => window.location.href = '/security/keys'}
           >
             <Key className="h-4 w-4 mr-2" />
             Issue Keys
