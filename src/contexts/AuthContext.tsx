@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { User, AuthState, LoginCredentials, UserRole } from '@/types/auth';
 
 interface AuthContextType extends AuthState {
@@ -37,11 +37,17 @@ const mockUsers: Record<string, User> = {
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [authState, setAuthState] = useState<AuthState>({
-    user: null,
-    isAuthenticated: false,
-    isLoading: false
+  const [authState, setAuthState] = useState<AuthState>(() => {
+    // Try to load from localStorage
+    const stored = localStorage.getItem("authState");
+    return stored
+      ? JSON.parse(stored)
+      : { user: null, isAuthenticated: false, isLoading: false };
   });
+
+  useEffect(() => {
+    localStorage.setItem("authState", JSON.stringify(authState));
+  }, [authState]);
 
   const login = async (credentials: LoginCredentials) => {
     setAuthState(prev => ({ ...prev, isLoading: true }));
