@@ -12,6 +12,12 @@ import logo from "@/assets/image.png";
 import bgImage from "@/assets/bg.jpg";
 
 const roleConfig = {
+  super_admin: {
+    icon: Shield,
+    title: 'Super Administrator',
+    description: 'Full system control and location management',
+    defaultEmail: 'superadmin@skoda.com'
+  },
   admin: {
     icon: Settings,
     title: 'Administrator',
@@ -91,20 +97,13 @@ export function LoginPage() {
                   <img src={logo} alt="Brand Logo" className="h-23 w-23 object-contain" />
                 </div>
                 <p className="text-black/80">Vehicle Booking Portal</p>
-              </div>
-
-              {/* <div className="p-2 bg-primary/10 rounded-lg">
-                <IconComponent className="h-6 w-6 text-primary" />
-              </div> */}
-              {/* <div>
-                <CardTitle className="text-xl">{config.title} Login</CardTitle>
-                <CardDescription>{config.description}</CardDescription>
-              </div> */}
+              </div>              
             </div>
 
             {/* Role Selection */}
             <Tabs value={selectedRole} onValueChange={handleRoleChange as (value: string) => void}>
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
+                <TabsTrigger value="super_admin" className="text-xs">Super Admin</TabsTrigger>
                 <TabsTrigger value="admin" className="text-xs">Admin</TabsTrigger>
                 <TabsTrigger value="trainer" className="text-xs">Trainer</TabsTrigger>
                 <TabsTrigger value="security" className="text-xs">Security</TabsTrigger>
@@ -151,13 +150,6 @@ export function LoginPage() {
               >
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </Button>
-
-              {/* Demo Credentials */}
-              {/* <div className="text-xs text-muted-foreground space-y-1 p-3 bg-muted/50 rounded-lg">
-                <p className="font-medium">Demo Credentials:</p>
-                <p>Email: {config.defaultEmail}</p>
-                <p>Password: password123</p>
-              </div> */}
               <a className='text-black/60 text-sm' href="">Forgot Password?</a>
             </form>
           </CardContent>

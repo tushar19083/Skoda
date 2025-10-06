@@ -5,106 +5,94 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { 
   Download, 
   FileText, 
   BarChart3, 
-  PieChart, 
   Calendar, 
   Users, 
-  Car, 
-  DollarSign,
+  Car,
   Send,
   Eye,
   Clock,
-  TrendingUp
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Report {
   id: string;
   name: string;
-  type: 'vehicle' | 'booking' | 'user' | 'maintenance';
+  type: 'vehicle' | 'booking' | 'trainer' | 'maintenance';
   description: string;
   lastGenerated: string;
-  frequency: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'yearly' | 'custom';
-  status: 'ready' | 'generating' | 'scheduled';
-  recipients: string[];
+  frequency: 'weekly' | 'monthly' | 'custom';
+  status: 'ready' | 'generating';
   fileSize?: string;
 }
 
 const mockReports: Report[] = [
   {
     id: '1',
-    name: 'Monthly Fleet Utilization',
+    name: 'Fleet Utilization Report',
     type: 'vehicle',
-    description: 'Comprehensive analysis of vehicle usage and efficiency metrics',
+    description: 'Vehicle usage and efficiency analysis',
     lastGenerated: '2024-01-15',
     frequency: 'monthly',
     status: 'ready',
-    recipients: ['admin@company.com', 'fleet@company.com'],
     fileSize: '2.4 MB'
   },
   {
     id: '2',
-    name: 'Weekly Booking Summary',
+    name: 'Booking Summary',
     type: 'booking',
-    description: 'Summary of all bookings, cancellations, and utilization rates',
+    description: 'Trainer booking patterns and statistics',
     lastGenerated: '2024-01-14',
     frequency: 'weekly',
     status: 'ready',
-    recipients: ['management@company.com'],
     fileSize: '1.8 MB'
   },
   {
     id: '3',
-    name: 'User Activity Report',
-    type: 'user',
-    description: 'User engagement, login patterns, and activity metrics',
+    name: 'Trainer Activity Report',
+    type: 'trainer',
+    description: 'Trainer usage and engagement metrics',
     lastGenerated: '2024-01-10',
     frequency: 'monthly',
     status: 'ready',
-    recipients: ['hr@company.com'],
     fileSize: '956 KB'
   },
   {
     id: '4',
-    name: 'Maintenance Cost Analysis',
+    name: 'Maintenance Log',
     type: 'maintenance',
-    description: 'Breakdown of maintenance costs, trends, and predictive insights',
+    description: 'Vehicle maintenance and downtime tracking',
     lastGenerated: '2024-01-12',
     frequency: 'monthly',
     status: 'generating',
-    recipients: ['maintenance@company.com', 'finance@company.com'],
   }
 ];
 
 const reportTemplates = [
   {
     id: 'fleet-summary',
-    name: 'Fleet Summary Report',
+    name: 'Fleet Summary',
     type: 'vehicle',
-    description: 'Overview of fleet status, utilization, and performance',
+    description: 'Overview of fleet status and performance',
     icon: Car,
-    metrics: ['Total Vehicles', 'Utilization Rate', 'Maintenance Status', 'Cost per Mile']
   },
   {
     id: 'booking-analytics',
-    name: 'Booking Analytics Report',
+    name: 'Booking Analytics',
     type: 'booking',
-    description: 'Detailed analysis of booking patterns and trends',
+    description: 'Trainer booking patterns',
     icon: Calendar,
-    metrics: ['Total Bookings', 'Peak Hours', 'Cancellation Rate', 'User Satisfaction']
   },
   {
-    id: 'user-engagement',
-    name: 'User Engagement Report',
-    type: 'user',
-    description: 'User activity, retention, and engagement statistics',
+    id: 'trainer-activity',
+    name: 'Trainer Activity',
+    type: 'trainer',
+    description: 'Trainer usage statistics',
     icon: Users,
-    metrics: ['Active Users', 'Login Frequency', 'Feature Usage', 'Retention Rate']
   }
 ];
 
@@ -115,9 +103,6 @@ export function Reports() {
     name: '',
     dateRange: 'last-month',
     frequency: 'monthly',
-    recipients: [''],
-    includeCharts: true,
-    includeRawData: false,
     format: 'pdf'
   });
   const [loading, setLoading] = useState<string | null>(null);
@@ -167,7 +152,6 @@ export function Reports() {
         lastGenerated: new Date().toISOString().split('T')[0],
         frequency: reportForm.frequency as Report['frequency'],
         status: 'ready',
-        recipients: reportForm.recipients.filter(r => r.trim() !== ''),
         fileSize: `${(Math.random() * 3 + 1).toFixed(1)} MB`
       };
       
@@ -178,40 +162,29 @@ export function Reports() {
         name: '',
         dateRange: 'last-month',
         frequency: 'monthly',
-        recipients: [''],
-        includeCharts: true,
-        includeRawData: false,
         format: 'pdf'
       });
       setSelectedTemplate('');
       
-      toast.success('Custom report created successfully');
+      toast.success('Report created successfully');
     } catch (error) {
-      toast.error('Failed to create custom report');
+      toast.error('Failed to create report');
     } finally {
       setLoading(null);
     }
   };
 
   const getStatusBadge = (status: Report['status']) => {
-    switch (status) {
-      case 'ready':
-        return <Badge className="bg-success text-success-foreground">Ready</Badge>;
-      case 'generating':
-        return <Badge className="bg-warning text-warning-foreground">Generating</Badge>;
-      case 'scheduled':
-        return <Badge variant="outline">Scheduled</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
+    return status === 'ready' 
+      ? <Badge className="bg-success text-success-foreground">Ready</Badge>
+      : <Badge className="bg-warning text-warning-foreground">Generating</Badge>;
   };
 
   const getTypeBadge = (type: Report['type']) => {
     const colors = {
       vehicle: 'bg-primary text-primary-foreground',
       booking: 'bg-blue-500 text-white',
-      financial: 'bg-green-500 text-white',
-      user: 'bg-purple-500 text-white',
+      trainer: 'bg-purple-500 text-white',
       maintenance: 'bg-orange-500 text-white'
     };
     
@@ -221,50 +194,39 @@ export function Reports() {
   const reportStats = {
     total: reports.length,
     ready: reports.filter(r => r.status === 'ready').length,
-    scheduled: reports.filter(r => r.status === 'scheduled').length,
     generating: reports.filter(r => r.status === 'generating').length,
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Reports & Analytics</h1>
-          <p className="text-muted-foreground">
-            Generate comprehensive reports and business insights
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">System Reports</h1>
+        <p className="text-muted-foreground">
+          Generate and download fleet management reports
+        </p>
       </div>
 
       {/* Report Statistics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <StatCard
           title="Total Reports"
           value={reportStats.total}
           description="All configured reports"
           icon={FileText}
-          trend={{ value: 12, isPositive: true }}
         />
         <StatCard
           title="Ready Reports"
           value={reportStats.ready}
           description="Available for download"
           icon={Download}
-          trend={{ value: 25, isPositive: true }}
         />
-        <StatCard
-          title="Scheduled"
-          value={reportStats.scheduled}
-          description="Automated generation"
-          icon={Clock}
-        />
-        <StatCard
+        {/* <StatCard
           title="Generating"
           value={reportStats.generating}
           description="Currently processing"
-          icon={TrendingUp}
-        />
+          icon={Clock}
+        /> */}
       </div>
 
       {/* Create Custom Report */}
@@ -274,11 +236,11 @@ export function Reports() {
             <BarChart3 className="h-5 w-5" />
             <span>Create Custom Report</span>
           </CardTitle>
-          <CardDescription>Generate a new report based on predefined templates</CardDescription>
+          <CardDescription>Generate a new report from templates</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Template Selection */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {reportTemplates.map((template) => (
               <div
                 key={template.id}
@@ -293,141 +255,77 @@ export function Reports() {
                   <div className="p-2 bg-primary/10 rounded-lg">
                     <template.icon className="h-5 w-5 text-primary" />
                   </div>
-                  <div className="flex-1">
+                  <div>
                     <div className="font-medium text-sm">{template.name}</div>
-                    {getTypeBadge(template.type)}
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground mb-3">{template.description}</p>
-                <div className="space-y-1">
-                  {template.metrics.map((metric, index) => (
-                    <div key={index} className="text-xs text-muted-foreground">• {metric}</div>
-                  ))}
-                </div>
+                <p className="text-xs text-muted-foreground">{template.description}</p>
               </div>
             ))}
           </div>
 
           {selectedTemplate && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 border rounded-lg bg-muted/20">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="reportName">Report Name</Label>
-                  <Input
-                    id="reportName"
-                    value={reportForm.name}
-                    onChange={(e) => setReportForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Enter custom report name"
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="dateRange">Date Range</Label>
-                  <Select
-                    value={reportForm.dateRange}
-                    onValueChange={(value) => setReportForm(prev => ({ ...prev, dateRange: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="last-week">Last Week</SelectItem>
-                      <SelectItem value="last-month">Last Month</SelectItem>
-                      <SelectItem value="last-quarter">Last Quarter</SelectItem>
-                      <SelectItem value="last-year">Last Year</SelectItem>
-                      <SelectItem value="custom">Custom Range</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="frequency">Generation Frequency</Label>
-                  <Select
-                    value={reportForm.frequency}
-                    onValueChange={(value) => setReportForm(prev => ({ ...prev, frequency: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                      <SelectItem value="quarterly">Quarterly</SelectItem>
-                      <SelectItem value="custom">One-time</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border rounded-lg bg-muted/20">
+              <div className="space-y-2">
+                <Label htmlFor="reportName">Report Name</Label>
+                <Input
+                  id="reportName"
+                  value={reportForm.name}
+                  onChange={(e) => setReportForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter report name"
+                />
               </div>
               
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Email Recipients</Label>
-                  {reportForm.recipients.map((recipient, index) => (
-                    <Input
-                      key={index}
-                      value={recipient}
-                      onChange={(e) => {
-                        const newRecipients = [...reportForm.recipients];
-                        newRecipients[index] = e.target.value;
-                        setReportForm(prev => ({ ...prev, recipients: newRecipients }));
-                      }}
-                      placeholder="email@company.com"
-                    />
-                  ))}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setReportForm(prev => ({ 
-                      ...prev, 
-                      recipients: [...prev.recipients, ''] 
-                    }))}
-                  >
-                    Add Recipient
-                  </Button>
-                </div>
-                
-                <div className="space-y-3">
-                  <Label>Report Options</Label>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="includeCharts"
-                      checked={reportForm.includeCharts}
-                      onCheckedChange={(checked) => 
-                        setReportForm(prev => ({ ...prev, includeCharts: !!checked }))
-                      }
-                    />
-                    <Label htmlFor="includeCharts" className="text-sm">Include Charts & Graphs</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="includeRawData"
-                      checked={reportForm.includeRawData}
-                      onCheckedChange={(checked) => 
-                        setReportForm(prev => ({ ...prev, includeRawData: !!checked }))
-                      }
-                    />
-                    <Label htmlFor="includeRawData" className="text-sm">Include Raw Data</Label>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="format">Export Format</Label>
-                  <Select
-                    value={reportForm.format}
-                    onValueChange={(value) => setReportForm(prev => ({ ...prev, format: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="pdf">PDF</SelectItem>
-                      <SelectItem value="excel">Excel</SelectItem>
-                      <SelectItem value="csv">CSV</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="dateRange">Date Range</Label>
+                <Select
+                  value={reportForm.dateRange}
+                  onValueChange={(value) => setReportForm(prev => ({ ...prev, dateRange: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="last-week">Last Week</SelectItem>
+                    <SelectItem value="last-month">Last Month</SelectItem>
+                    <SelectItem value="last-quarter">Last Quarter</SelectItem>
+                    <SelectItem value="last-year">Last Year</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="frequency">Frequency</Label>
+                <Select
+                  value={reportForm.frequency}
+                  onValueChange={(value) => setReportForm(prev => ({ ...prev, frequency: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="custom">One-time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="format">Format</Label>
+                <Select
+                  value={reportForm.format}
+                  onValueChange={(value) => setReportForm(prev => ({ ...prev, format: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                    <SelectItem value="excel">Excel</SelectItem>
+                    <SelectItem value="csv">CSV</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               
               <div className="md:col-span-2 flex justify-end">
@@ -449,9 +347,9 @@ export function Reports() {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <FileText className="h-5 w-5" />
-            <span>Existing Reports</span>
+            <span>Available Reports</span>
           </CardTitle>
-          <CardDescription>Manage and download generated reports</CardDescription>
+          <CardDescription>Download and manage generated reports</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -465,19 +363,16 @@ export function Reports() {
                     <FileText className="h-5 w-5 text-primary" />
                   </div>
                   <div className="space-y-1">
-                    <div className="font-medium">{report.name}</div>
-                    <div className="text-sm text-muted-foreground">{report.description}</div>
                     <div className="flex items-center space-x-2">
+                      <h3 className="font-medium">{report.name}</h3>
                       {getTypeBadge(report.type)}
                       {getStatusBadge(report.status)}
-                      <span className="text-xs text-muted-foreground">
-                        Last generated: {report.lastGenerated}
-                      </span>
-                      {report.fileSize && (
-                        <span className="text-xs text-muted-foreground">
-                          • {report.fileSize}
-                        </span>
-                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{report.description}</p>
+                    <div className="flex items-center space-x-3 text-xs text-muted-foreground">
+                      <span>Last generated: {report.lastGenerated}</span>
+                      {report.fileSize && <span>• {report.fileSize}</span>}
+                      <span>• {report.frequency}</span>
                     </div>
                   </div>
                 </div>
@@ -486,31 +381,22 @@ export function Reports() {
                   {report.status === 'ready' && (
                     <>
                       <Button variant="ghost" size="sm">
-                        <Eye className="h-4 w-4 mr-1" />
-                        View
+                        <Eye className="h-4 w-4" />
                       </Button>
                       <Button variant="ghost" size="sm">
-                        <Download className="h-4 w-4 mr-1" />
-                        Download
-                      </Button>
-                      <Button variant="ghost" size="sm">
-                        <Send className="h-4 w-4 mr-1" />
-                        Send
+                        <Download className="h-4 w-4" />
                       </Button>
                     </>
                   )}
-                  {report.status === 'scheduled' && (
-                    <Button
-                      variant="outline"
+                  {report.status === 'generating' && (
+                    <Button 
+                      variant="outline" 
                       size="sm"
-                      onClick={() => handleGenerateReport(report.id)}
                       disabled={loading === report.id}
+                      onClick={() => handleGenerateReport(report.id)}
                     >
                       {loading === report.id ? 'Generating...' : 'Generate Now'}
                     </Button>
-                  )}
-                  {report.status === 'generating' && (
-                    <div className="text-sm text-muted-foreground">Generating...</div>
                   )}
                 </div>
               </div>

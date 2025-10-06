@@ -37,6 +37,14 @@ const navigationItems: Record<UserRole, Array<{
   icon: any;
   group: string;
 }>> = {
+  super_admin: [
+    { title: 'Dashboard', url: '/super_admin', icon: Home, group: 'Overview' },
+    { title: 'Admins', url: '/super_admin/admins', icon: Shield, group: 'System Management' },
+    { title: 'All Users', url: '/super_admin/users', icon: Users, group: 'System Management' },
+    { title: 'All Vehicles', url: '/super_admin/vehicles', icon: Car, group: 'System Management' },
+    { title: 'System Reports', url: '/super_admin/reports', icon: FileText, group: 'Reports' },
+    { title: 'Analytics', url: '/super_admin/analytics', icon: BarChart3, group: 'Reports' },
+  ],
   admin: [
     { title: 'Dashboard', url: '/admin', icon: Home, group: 'Overview' },
     { title: 'Analytics', url: '/admin/analytics', icon: BarChart3, group: 'Overview' },

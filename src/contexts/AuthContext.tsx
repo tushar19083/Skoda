@@ -10,29 +10,68 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Mock users for demonstration
 const mockUsers: Record<string, User> = {
+  'superadmin@skoda.com': {
+    id: '0',
+    name: 'Super Administrator',
+    email: 'superadmin@skoda.com',
+    role: 'super_admin',
+    location: 'ALL',
+    department: 'System Administration',
+    employeeId: 'EMP000'
+  },
   'admin@skoda.com': {
     id: '1',
     name: 'John Administrator',
     email: 'admin@skoda.com',
     role: 'admin',
+    location: 'PTC',
     department: 'Fleet Management',
     employeeId: 'EMP001'
   },
-  'trainer@skoda.com': {
+  'admin.vgtap@skoda.com': {
     id: '2',
+    name: 'Priya Admin',
+    email: 'admin.vgtap@skoda.com',
+    role: 'admin',
+    location: 'VGTAP',
+    department: 'Fleet Management',
+    employeeId: 'EMP002'
+  },
+  'admin.ncr@skoda.com': {
+    id: '3',
+    name: 'Rajesh Kumar',
+    email: 'admin.ncr@skoda.com',
+    role: 'admin',
+    location: 'NCR',
+    department: 'Fleet Management',
+    employeeId: 'EMP003'
+  },
+  'admin.blr@skoda.com': {
+    id: '4',
+    name: 'Ananya Sharma',
+    email: 'admin.blr@skoda.com',
+    role: 'admin',
+    location: 'BLR',
+    department: 'Fleet Management',
+    employeeId: 'EMP004'
+  },
+  'trainer@skoda.com': {
+    id: '5',
     name: 'Sarah Trainer',
     email: 'trainer@skoda.com',
     role: 'trainer',
+    location: 'PTC',
     department: 'Training Center',
-    employeeId: 'EMP002'
+    employeeId: 'EMP005'
   },
   'security@skoda.com': {
-    id: '3',
+    id: '6',
     name: 'Mike Security',
     email: 'security@skoda.com',
     role: 'security',
+    location: 'PTC',
     department: 'Security',
-    employeeId: 'EMP003'
+    employeeId: 'EMP006'
   }
 };
 
