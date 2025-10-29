@@ -10,8 +10,10 @@ import {
   FileText,
   Key,
   ArrowLeftRight,
+  BookOpen,
   Shield,
-  Home
+  Home,
+  MessageSquare
 } from 'lucide-react';
 
 import {
@@ -39,6 +41,7 @@ const navigationItems: Record<UserRole, Array<{
 }>> = {
   super_admin: [
     { title: 'Dashboard', url: '/super_admin', icon: Home, group: 'Overview' },
+    { title: 'Messages', url: '/super-admin/messages', icon: MessageSquare, group: 'Communication' },
     { title: 'Admins', url: '/super_admin/admins', icon: Shield, group: 'System Management' },
     { title: 'All Users', url: '/super_admin/users', icon: Users, group: 'System Management' },
     { title: 'All Vehicles', url: '/super_admin/vehicles', icon: Car, group: 'System Management' },
@@ -48,6 +51,7 @@ const navigationItems: Record<UserRole, Array<{
   admin: [
     { title: 'Dashboard', url: '/admin', icon: Home, group: 'Overview' },
     { title: 'Analytics', url: '/admin/analytics', icon: BarChart3, group: 'Overview' },
+    { title: 'Messages', url: '/admin/messages', icon: MessageSquare, group: 'Communication' },
     { title: 'Vehicles', url: '/admin/vehicles', icon: Car, group: 'Management' },
     { title: 'Users', url: '/admin/users', icon: Users, group: 'Management' },
     { title: 'Bookings', url: '/admin/bookings', icon: Calendar, group: 'Management' },
@@ -56,11 +60,13 @@ const navigationItems: Record<UserRole, Array<{
   ],
   trainer: [
     { title: 'Dashboard', url: '/trainer', icon: Home, group: 'Overview' },
+    { title: 'Messages', url: '/trainer/messages', icon: MessageSquare, group: 'Communication' },
     { title: 'Book Vehicle', url: '/trainer/book', icon: Car, group: 'Booking' },
     { title: 'My Bookings', url: '/trainer/bookings', icon: Calendar, group: 'Booking' },
   ],
   security: [
     { title: 'Dashboard', url: '/security', icon: Home, group: 'Overview' },
+    { title: 'Messages', url: '/security/messages', icon: MessageSquare, group: 'Communication' },
     { title: 'Issue Keys', url: '/security/keys', icon: Key, group: 'Operations' },
     { title: 'Vehicle Returns', url: '/security/returns', icon: ArrowLeftRight, group: 'Operations' },
     { title: 'Security Logs', url: '/security/logs', icon: Shield, group: 'Monitoring' },

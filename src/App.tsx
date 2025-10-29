@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { MessagingProvider } from "@/contexts/MessagingContext";
 import { LoginPage } from "@/components/auth/LoginPage";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { SuperAdminDashboard } from "@/pages/super-admin/SuperAdminDashboard";
@@ -25,9 +26,10 @@ import { Bookings } from "./pages/admin/Bookings";
 import { Reports } from "./pages/admin/Reports";
 import ServiceRecords from "./pages/admin/ServiceRecords";
 import { AllUsers } from "./pages/super-admin/AllUsers";
-import AllVehicles from "./pages/super-admin/AllVehicles";
+import {AllVehicles} from "./pages/super-admin/AllVehicles";
 import { AllAnalytics } from "./pages/super-admin/AllAnalytics";
-
+import { Messages } from "@/pages/common/Messages";
+import { AllReports } from "./pages/super-admin/AllReports";
 
 
 const queryClient = new QueryClient();
@@ -36,7 +38,11 @@ function AppRoutes() {
   const { isAuthenticated, user } = useAuth();
 
   if (!isAuthenticated) {
-    return <LoginPage />;
+    return (
+      <Routes>
+        <Route path="*" element={<LoginPage />} />
+      </Routes>
+    );
   }
 
   return (
@@ -47,14 +53,16 @@ function AppRoutes() {
         
         {/* Super Admin Routes */}
         <Route path="/super_admin" element={user?.role === 'super_admin' ? <SuperAdminDashboard /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/super-admin/messages" element={user?.role === 'super_admin' ? <Messages /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/super_admin/admins" element={user?.role === 'super_admin' ? <AdminManagement /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/super_admin/users" element={user?.role === 'super_admin' ? <AllUsers /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/super_admin/vehicles" element={user?.role === 'super_admin' ? <AllVehicles /> : <Navigate to={`/${user?.role}`} />} />
-        <Route path="/super_admin/reports" element={user?.role === 'super_admin' ? <Reports /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/super_admin/reports" element={user?.role === 'super_admin' ? <AllReports/> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/super_admin/analytics" element={user?.role === 'super_admin' ? <AllAnalytics /> : <Navigate to={`/${user?.role}`} />} />
 
         {/* Admin Routes */}
         <Route path="/admin" element={user?.role === 'admin' ? <AdminDashboard /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/admin/messages" element={user?.role === 'admin' ? <Messages /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/admin/vehicles" element={user?.role === 'admin' ? <VehicleManagement /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/admin/analytics" element={user?.role === 'admin' ? <Analytics /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/admin/users" element={user?.role === 'admin' ? <Users /> : <Navigate to={`/${user?.role}`} />} />
@@ -64,11 +72,13 @@ function AppRoutes() {
 
         {/* Trainer Routes */}
         <Route path="/trainer" element={user?.role === 'trainer' ? <TrainerDashboard /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/trainer/messages" element={user?.role === 'trainer' ? <Messages /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/trainer/book" element={user?.role === 'trainer' ? <BookVehicle /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/trainer/bookings" element={user?.role === 'trainer' ? <MyBookings /> : <Navigate to={`/${user?.role}`} />} />
         
         {/* Security Routes */}
         <Route path="/security" element={user?.role === 'security' ? <SecurityDashboard /> : <Navigate to={`/${user?.role}`} />} />
+        <Route path="/security/messages" element={user?.role === 'security' ? <Messages /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/security/keys" element={user?.role === 'security' ? <IssueKeys/> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/security/returns" element={user?.role === 'security' ? <VehicleReturns /> : <Navigate to={`/${user?.role}`} />} />
         <Route path="/security/logs" element={user?.role === "security" ? <SecurityLogs /> : <Navigate to={`/${user?.role}`} />} />
@@ -87,7 +97,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <AppRoutes />
+          <MessagingProvider>
+            <AppRoutes />
+          </MessagingProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

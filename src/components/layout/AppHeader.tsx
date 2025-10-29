@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { NotificationDropdown } from '@/components/notifications/NotificationDropdown';
+import { MessageNotificationBadge } from './MessageNotificationBadge';
 
 export function AppHeader() {
   const { user, logout } = useAuth();
@@ -60,6 +61,9 @@ export function AppHeader() {
 
         {/* Right side */}
         <div className="flex items-center space-x-4">
+          {/* Message Notifications */}
+          <MessageNotificationBadge />
+
           {/* Notifications */}
           <NotificationDropdown />
 

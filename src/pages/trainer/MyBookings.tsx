@@ -18,7 +18,7 @@ import { format } from 'date-fns';
 export function MyBookings() {
   const { user } = useAuth();
   const { bookings, loading: bookingsLoading, updateBookingStatus, deleteBooking } = useBookings();
-  const { vehicles, loading: vehiclesLoading } = useVehicles();
+  const { vehicles, isLoading: vehiclesLoading } = useVehicles();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');

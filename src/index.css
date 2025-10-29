@@ -44,6 +44,8 @@ All colors MUST be HSL. Brand-specific color palette for automotive industry.
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
+    --info: 207 90% 54%;
+    --info-foreground: 0 0% 100%;
 
     /* Form Elements */
     --border: 215 16% 89%;
@@ -120,6 +122,8 @@ All colors MUST be HSL. Brand-specific color palette for automotive industry.
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
+    --info: 207 90% 54%;
+    --info-foreground: 0 0% 100%;
 
     --border: 215 28% 17%;
     --input: 215 28% 17%;
@@ -140,6 +144,13 @@ All colors MUST be HSL. Brand-specific color palette for automotive industry.
     --sidebar-accent-foreground: 215 16% 95%;
     --sidebar-border: 215 28% 17%;
     --sidebar-ring: 122 39% 49%;
+
+    /* Chart Colors */
+    --chart-1: 122 39% 49%;
+    --chart-2: 207 90% 54%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 0 72% 51%;
+    --chart-5: 215 25% 16%;
   }
 }
 

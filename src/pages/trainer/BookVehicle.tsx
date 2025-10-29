@@ -79,7 +79,7 @@ export function BookVehicle() {
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!user || !selectedVehicle) return;
+    if (!user || !selectedVehicle || !selectedLocation) return;
 
     try {
       await createBooking({
@@ -89,7 +89,7 @@ export function BookVehicle() {
         startDate: bookingForm.startDate,
         endDate: bookingForm.endDate,
         purpose: bookingForm.purpose,
-        requestedLocation: selectedLocation,
+        requestedLocation: selectedLocation as AcademyLocation,
         status: 'pending',
         notes: bookingForm.notes,
       });
