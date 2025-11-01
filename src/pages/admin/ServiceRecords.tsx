@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import AddServiceRecordDialog from '@/components/admin/AddServiceRecordDialog';
 
 interface VehicleRecord {
   id: string;
@@ -291,10 +292,12 @@ export default function ServiceRecords() {
           <h1 className="text-3xl font-bold">Vehicle Records</h1>
           <p className="text-muted-foreground">Comprehensive vehicle management and compliance tracking</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Vehicle
-        </Button>
+        <AddServiceRecordDialog>
+          <Button>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Service Record
+          </Button>
+        </AddServiceRecordDialog>
       </div>
 
       {/* Stats Cards */}
