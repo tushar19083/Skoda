@@ -197,35 +197,6 @@ export function AllAnalytics() {
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
-      <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle>Analytics Reports</CardTitle>
-          <CardDescription>Generate detailed reports and insights</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            <Button variant="outline" className="justify-start h-auto p-4">
-              <div className="text-left">
-                <p className="font-medium">Usage Statistics</p>
-                <p className="text-xs text-muted-foreground">Fleet utilization metrics</p>
-              </div>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto p-4">
-              <div className="text-left">
-                <p className="font-medium">Trainer Activity</p>
-                <p className="text-xs text-muted-foreground">Booking patterns and engagement</p>
-              </div>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto p-4">
-              <div className="text-left">
-                <p className="font-medium">Vehicle Performance</p>
-                <p className="text-xs text-muted-foreground">Usage and maintenance trends</p>
-              </div>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

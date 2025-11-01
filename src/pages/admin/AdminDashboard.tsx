@@ -92,7 +92,9 @@ export function AdminDashboard() {
             Overview of fleet operations and system management
           </p>
         </div>
-        <Button className="bg-gradient-primary hover:bg-primary-hover">
+        <Button className="bg-gradient-primary hover:bg-primary-hover"
+        onClick={() => window.location.href = '/admin/reports'}
+        >
           Generate Report
         </Button>
       </div>
@@ -204,46 +206,6 @@ export function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <TrendingUp className="h-5 w-5" />
-            <span>Quick Actions</span>
-          </CardTitle>
-          <CardDescription>
-            Common administrative tasks and shortcuts
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className="justify-start h-auto p-4">
-              <div className="text-left">
-                <p className="font-medium">Add Vehicle</p>
-                <p className="text-xs text-muted-foreground">Register new vehicle</p>
-              </div>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto p-4">
-              <div className="text-left">
-                <p className="font-medium">Create User</p>
-                <p className="text-xs text-muted-foreground">Add new system user</p>
-              </div>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto p-4">
-              <div className="text-left">
-                <p className="font-medium">Schedule Service</p>
-                <p className="text-xs text-muted-foreground">Plan maintenance</p>
-              </div>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto p-4">
-              <div className="text-left">
-                <p className="font-medium">Export Data</p>
-                <p className="text-xs text-muted-foreground">Generate reports</p>
-              </div>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

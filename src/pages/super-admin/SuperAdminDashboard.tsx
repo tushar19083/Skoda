@@ -132,7 +132,7 @@ export function SuperAdminDashboard() {
                 <TableHead>Trainers</TableHead>
                 <TableHead>Active Bookings</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
+                {/* <TableHead>Actions</TableHead> */}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -165,7 +165,7 @@ export function SuperAdminDashboard() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => navigate('/super-admin/admins')}
+                      onClick={() => navigate('/super_admin/admins')}
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -177,45 +177,7 @@ export function SuperAdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Quick Actions */}
-      <Card className="card-elevated">
-        <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common administrative tasks</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            <Button 
-              variant="outline" 
-              className="justify-start h-auto p-4"
-              onClick={() => navigate('/super_admin/admins')}
-            >
-              <div className="text-left">
-                <p className="font-medium">Manage Admins</p>
-                <p className="text-xs text-muted-foreground">Add or remove location administrators</p>
-              </div>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="justify-start h-auto p-4"
-            >
-              <div className="text-left">
-                <p className="font-medium">View All Users</p>
-                <p className="text-xs text-muted-foreground">System-wide user management</p>
-              </div>
-            </Button>
-            <Button 
-              variant="outline" 
-              className="justify-start h-auto p-4"
-            >
-              <div className="text-left">
-                <p className="font-medium">System Reports</p>
-                <p className="text-xs text-muted-foreground">Analytics and insights</p>
-              </div>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    
     </div>
   );
 }

@@ -312,41 +312,6 @@ export function Analytics() {
         </Card>
       </div>
 
-      {/* Quick Actions */}
-      <Card className="shadow-sm border border-gray-200">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg">Fleet Management Actions</CardTitle>
-          <CardDescription className="text-sm text-gray-600">Generate reports and manage fleet operations</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Button variant="outline" className="justify-start h-auto p-4 text-left">
-              <div>
-                <p className="font-medium text-sm">Compliance Report</p>
-                <p className="text-xs text-gray-500 mt-1">Insurance & PUC status</p>
-              </div>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto p-4 text-left">
-              <div>
-                <p className="font-medium text-sm">Utilization Report</p>
-                <p className="text-xs text-gray-500 mt-1">Fleet usage analytics</p>
-              </div>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto p-4 text-left">
-              <div>
-                <p className="font-medium text-sm">Trainer Analysis</p>
-                <p className="text-xs text-gray-500 mt-1">Allocation & performance</p>
-              </div>
-            </Button>
-            <Button variant="outline" className="justify-start h-auto p-4 text-left">
-              <div>
-                <p className="font-medium text-sm">Maintenance Schedule</p>
-                <p className="text-xs text-gray-500 mt-1">Service & repair tracking</p>
-              </div>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
