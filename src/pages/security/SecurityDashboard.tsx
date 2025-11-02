@@ -1,80 +1,102 @@
-import { Key, ArrowLeftRight, Shield, AlertCircle, Clock, CheckCircle } from 'lucide-react';
+import { Key, ArrowLeftRight, Shield, AlertCircle, Clock, CheckCircle, MapPin } from 'lucide-react';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-
-const mockStats = {
-  keysIssued: 8,
-  pendingReturns: 5,
-  securityAlerts: 2,
-  vehiclesInUse: 12,
-};
-
-const mockPendingKeyRequests = [
-  {
-    id: '1',
-    vehicle: 'Skoda Octavia - SK001',
-    trainer: 'Sarah Thompson',
-    requestTime: '09:15',
-    purpose: 'Advanced Driving',
-  },
-  {
-    id: '2',
-    vehicle: 'VW Golf - VW003',
-    trainer: 'Mike Johnson',
-    requestTime: '09:45',
-    purpose: 'Emergency Training',
-  },
-  {
-    id: '3',
-    vehicle: 'Audi A4 - AD002',
-    trainer: 'Emma Wilson',
-    requestTime: '10:30',
-    purpose: 'Standard Session',
-  },
-];
-
-const mockActiveIssues = [
-  {
-    id: '1',
-    vehicle: 'Skoda Superb - SK005',
-    trainer: 'John Davis',
-    issuedTime: '08:30',
-    expectedReturn: '12:30',
-    status: 'active'
-  },
-  {
-    id: '2',
-    vehicle: 'VW Passat - VW008',
-    trainer: 'Lisa Brown',
-    issuedTime: '09:00',
-    expectedReturn: '13:00',
-    status: 'overdue'
-  },
-];
-
-const mockSecurityAlerts = [
-  {
-    id: '1',
-    type: 'Overdue Return',
-    vehicle: 'VW Passat - VW008',
-    description: 'Vehicle is 30 minutes overdue',
-    severity: 'high',
-    time: '13:30'
-  },
-  {
-    id: '2',
-    type: 'Damage Report',
-    vehicle: 'Skoda Fabia - SK012',
-    description: 'Minor scratch reported on return',
-    severity: 'medium',
-    time: '12:15'
-  },
-];
+import { useAuth } from '@/contexts/AuthContext';
+import { useBookings } from '@/hooks/useBookings';
+import { useVehicles } from '@/hooks/useVehicles';
+import { useLocationFilter } from '@/hooks/useLocationFilter';
+import { getLocationName } from '@/constants/locations';
+import { format, isAfter, isBefore, startOfDay, endOfDay, isToday } from 'date-fns';
 
 export function SecurityDashboard() {
-
+  const { user } = useAuth();
+  const { bookings, loading: bookingsLoading } = useBookings();
+  const { vehicles, isLoading: vehiclesLoading } = useVehicles();
+  const { filterByLocation } = useLocationFilter();
+  
+  // Filter bookings by location for security user
+  const locationBookings = filterByLocation(bookings.map(b => ({
+    ...b,
+    location: b.requestedLocation
+  })));
+  
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const todayEnd = endOfDay(now);
+  
+  // Calculate stats dynamically
+  // Keys issued today = approved bookings that started today or are active
+  const keysIssuedToday = locationBookings.filter(b => {
+    const startDate = new Date(b.startDate);
+    return (b.status === 'approved' || b.status === 'active') && 
+           (isToday(startDate) || isBefore(startDate, now));
+  }).length;
+  
+  // Pending returns = active bookings that haven't ended yet
+  const pendingReturns = locationBookings.filter(b => {
+    const endDate = new Date(b.endDate);
+    return b.status === 'active' && isAfter(endDate, now);
+  }).length;
+  
+  // Security alerts = overdue bookings (end date has passed but status is still active)
+  const securityAlerts = locationBookings.filter(b => {
+    const endDate = new Date(b.endDate);
+    return b.status === 'active' && isBefore(endDate, now);
+  }).length;
+  
+  // Vehicles in use = active bookings
+  const vehiclesInUse = locationBookings.filter(b => b.status === 'active').length;
+  
+  const stats = {
+    keysIssued: keysIssuedToday,
+    pendingReturns,
+    securityAlerts,
+    vehiclesInUse,
+  };
+  
+  // Pending key requests = approved bookings that are ready (start date is today or in the past)
+  const pendingKeyRequests = locationBookings
+    .filter(b => {
+      const startDate = new Date(b.startDate);
+      return b.status === 'approved' && 
+             (isToday(startDate) || isBefore(startDate, now) || isAfter(startDate, now));
+    })
+    .slice(0, 3)
+    .map(booking => {
+      const vehicle = vehicles.find(v => v.id === booking.vehicleId);
+      const startDate = new Date(booking.startDate);
+      return {
+        id: booking.id,
+        vehicle: vehicle ? `${vehicle.brand} ${vehicle.model} - ${vehicle.regNo}` : 'Unknown Vehicle',
+        trainer: booking.trainerName,
+        requestTime: format(startDate, 'HH:mm'),
+        purpose: booking.purpose,
+        booking
+      };
+    });
+  
+  // Active key issues = active bookings
+  const activeIssues = locationBookings
+    .filter(b => b.status === 'active')
+    .slice(0, 3)
+    .map(booking => {
+      const vehicle = vehicles.find(v => v.id === booking.vehicleId);
+      const startDate = new Date(booking.startDate);
+      const endDate = new Date(booking.endDate);
+      const isOverdue = isBefore(endDate, now);
+      return {
+        id: booking.id,
+        vehicle: vehicle ? `${vehicle.brand} ${vehicle.model} - ${vehicle.regNo}` : 'Unknown Vehicle',
+        trainer: booking.trainerName,
+        issuedTime: format(startDate, 'HH:mm'),
+        expectedReturn: format(endDate, 'HH:mm'),
+        status: isOverdue ? 'overdue' : 'active',
+        booking
+      };
+    });
+  
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'active':
@@ -93,9 +115,17 @@ export function SecurityDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Security Dashboard</h1>
+          <div className="flex items-center gap-2 mb-2">
+            <h1 className="text-3xl font-bold">Security Dashboard</h1>
+            {user?.location && (
+              <Badge variant="outline" className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {getLocationName(user.location)}
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground">
-            Vehicle key management and security monitoring
+            Vehicle key management and security monitoring {user?.location && `at ${getLocationName(user.location)}`}
           </p>
         </div>
         <div className="flex space-x-2">
@@ -126,27 +156,27 @@ export function SecurityDashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Keys Issued Today"
-          value={mockStats.keysIssued}
+          value={stats.keysIssued}
           description="Active key handouts"
           icon={Key}
           trend={{ value: 12, isPositive: true }}
         />
         <StatCard
           title="Pending Returns"
-          value={mockStats.pendingReturns}
+          value={stats.pendingReturns}
           description="Vehicles still out"
           icon={ArrowLeftRight}
         />
         <StatCard
           title="Security Alerts"
-          value={mockStats.securityAlerts}
+          value={stats.securityAlerts}
           description="Requires attention"
           icon={AlertCircle}
           className="border-warning"
         />
         <StatCard
           title="Vehicles in Use"
-          value={mockStats.vehiclesInUse}
+          value={stats.vehiclesInUse}
           description="Currently deployed"
           icon={Shield}
         />
@@ -166,34 +196,52 @@ export function SecurityDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {mockPendingKeyRequests.map((request) => (
-                <div
-                  key={request.id}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors"
-                >
-                  <div className="space-y-1">
-                    <p className="font-medium">{request.vehicle}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {request.trainer} • {request.purpose}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Requested at {request.requestTime}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end space-y-2">
-                    <Button size="sm" className="h-7">
-                      Issue Key
-                    </Button>
-                  </div>
+            {bookingsLoading || vehiclesLoading ? (
+              <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            ) : pendingKeyRequests.length > 0 ? (
+              <>
+                <div className="space-y-4">
+                  {pendingKeyRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors"
+                    >
+                      <div className="space-y-1">
+                        <p className="font-medium">{request.vehicle}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {request.trainer} • {request.purpose}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Requested at {request.requestTime}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end space-y-2">
+                        <Button 
+                          size="sm" 
+                          className="h-7"
+                          onClick={() => window.location.href = '/security/keys'}
+                        >
+                          Issue Key
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="mt-4 pt-4 border-t">
-              <Button variant="ghost" className="w-full">
-                View All Requests
-              </Button>
-            </div>
+                <div className="mt-4 pt-4 border-t">
+                  <Button 
+                    variant="ghost" 
+                    className="w-full"
+                    onClick={() => window.location.href = '/security/keys'}
+                  >
+                    View All Requests
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No pending key requests
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -209,33 +257,52 @@ export function SecurityDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {mockActiveIssues.map((issue) => (
-                <div
-                  key={issue.id}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors"
-                >
-                  <div className="space-y-1">
-                    <p className="font-medium">{issue.vehicle}</p>
-                    <p className="text-sm text-muted-foreground">{issue.trainer}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Issued: {issue.issuedTime} | Return: {issue.expectedReturn}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end space-y-2">
-                    {getStatusBadge(issue.status)}
-                    <Button size="sm" variant="outline" className="h-7">
-                      Check Return
-                    </Button>
-                  </div>
+            {bookingsLoading || vehiclesLoading ? (
+              <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            ) : activeIssues.length > 0 ? (
+              <>
+                <div className="space-y-4">
+                  {activeIssues.map((issue) => (
+                    <div
+                      key={issue.id}
+                      className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted/70 transition-colors"
+                    >
+                      <div className="space-y-1">
+                        <p className="font-medium">{issue.vehicle}</p>
+                        <p className="text-sm text-muted-foreground">{issue.trainer}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Issued: {issue.issuedTime} | Return: {issue.expectedReturn}
+                        </p>
+                      </div>
+                      <div className="flex flex-col items-end space-y-2">
+                        {getStatusBadge(issue.status)}
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="h-7"
+                          onClick={() => window.location.href = '/security/returns'}
+                        >
+                          Check Return
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <div className="mt-4 pt-4 border-t">
-              <Button variant="ghost" className="w-full">
-                View All Active Issues
-              </Button>
-            </div>
+                <div className="mt-4 pt-4 border-t">
+                  <Button 
+                    variant="ghost" 
+                    className="w-full"
+                    onClick={() => window.location.href = '/security/returns'}
+                  >
+                    View All Active Issues
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                No active key issues
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

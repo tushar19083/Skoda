@@ -68,8 +68,25 @@ export const LOCATIONS: Location[] = [
   }
 ];
 
-export const getLocationName = (code: LocationCode): string => {
-  if (code === 'ALL') return 'All Locations';
-  const location = LOCATIONS.find(l => l.code === code);
-  return location?.fullName || code;
+export const getLocationName = (code: LocationCode | string): string => {
+  if (!code || code === 'ALL') return 'All Locations';
+  
+  // Handle both LocationCode and string inputs
+  const codeStr = String(code);
+  
+  // Try to find exact match first
+  const location = LOCATIONS.find(l => l.code === codeStr || l.name === codeStr || l.fullName === codeStr);
+  if (location) return location.fullName;
+  
+  // Handle location codes/names that might not match exactly
+  const locationMap: Record<string, string> = {
+    'PTC': 'Pune Training Center',
+    'Pune': 'Pune Training Center',
+    'VGTAP': 'VGTAP Training Center',
+    'NCR': 'NCR Training Center',
+    'BLR': 'Bangalore Training Center',
+    'Bangalore': 'Bangalore Training Center',
+  };
+  
+  return locationMap[codeStr] || codeStr;
 };

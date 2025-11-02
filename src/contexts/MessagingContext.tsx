@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext';
 
 interface MessagingContextType {
   messages: Message[];
-  sendMessage: (content: string, recipientIds: string[], recipientRoles?: string[], parentMessageId?: string) => void;
+  sendMessage: (content: string, recipientIds: string[], recipientRoles?: string[], parentMessageId?: string, locationFilter?: string) => void;
   markAsRead: (messageId: string) => void;
   unreadCount: number;
 }
@@ -28,43 +28,75 @@ export function MessagingProvider({ children }: { children: ReactNode }) {
 
   // Load messages from localStorage
   useEffect(() => {
-    const stored = localStorage.getItem('app_messages');
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setMessages(parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })));
+    try {
+      const stored = localStorage.getItem('app_messages');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setMessages(parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })));
+      }
+    } catch (error) {
+      console.error('Error loading messages from localStorage:', error);
+      // Clear corrupted data
+      localStorage.removeItem('app_messages');
     }
   }, []);
 
   // Save messages to localStorage
   useEffect(() => {
-    if (messages.length > 0) {
-      localStorage.setItem('app_messages', JSON.stringify(messages));
+    try {
+      if (messages.length > 0) {
+        localStorage.setItem('app_messages', JSON.stringify(messages));
+      }
+    } catch (error) {
+      console.error('Error saving messages to localStorage:', error);
+      // Handle quota exceeded or other storage errors gracefully
     }
   }, [messages]);
 
-  const sendMessage = (content: string, recipientIds: string[], recipientRoles?: string[], parentMessageId?: string) => {
-    if (!user) return;
+  const sendMessage = (content: string, recipientIds: string[], recipientRoles?: string[], parentMessageId?: string, locationFilter?: string) => {
+    if (!user) {
+      console.error('Cannot send message: user not authenticated');
+      return;
+    }
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      senderId: user.id,
-      senderName: user.name,
-      senderRole: user.role,
-      recipientIds,
-      recipientRoles,
-      content,
-      timestamp: new Date(),
-      read: false,
-      parentMessageId,
-    };
+    if (!content || !content.trim()) {
+      console.error('Cannot send empty message');
+      return;
+    }
 
-    setMessages(prev => [...prev, newMessage]);
+    try {
+      const newMessage: Message = {
+        id: Date.now().toString(),
+        senderId: user.id,
+        senderName: user.name,
+        senderRole: user.role,
+        recipientIds,
+        recipientRoles,
+        locationFilter: locationFilter || undefined,
+        content: content.trim(),
+        timestamp: new Date(),
+        read: false,
+        parentMessageId,
+      };
+
+      setMessages(prev => [...prev, newMessage]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      throw error;
+    }
   };
 
   const markAsRead = (messageId: string) => {
-    setMessages(prev =>
-      prev.map(msg => (msg.id === messageId ? { ...msg, read: true } : msg))
-    );
+    setMessages(prev => {
+      const updated = prev.map(msg => (msg.id === messageId ? { ...msg, read: true } : msg));
+      // Save to localStorage immediately
+      try {
+        localStorage.setItem('app_messages', JSON.stringify(updated));
+      } catch (error) {
+        console.error('Error saving messages to localStorage:', error);
+      }
+      return updated;
+    });
   };
 
   const unreadCount = messages.filter(

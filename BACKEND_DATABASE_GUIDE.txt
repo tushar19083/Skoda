@@ -1,0 +1,1883 @@
+================================================================================
+SKODA VEHICLE BOOKING SYSTEM - BACKEND & DATABASE IMPLEMENTATION GUIDE
+================================================================================
+
+OVERVIEW
+--------
+This document provides a comprehensive guide for building a production-ready backend
+using Node.js + Express.js and PostgreSQL database that seamlessly integrates with
+the existing React frontend application.
+
+FRONTEND OVERVIEW (What We're Building For)
+--------------------------------------------
+The frontend is a React-based vehicle booking management system with the following
+key features:
+- Multi-role authentication (Super Admin, Admin, Trainer, Security)
+- Location-based access control (PTC, VGTAP, NCR, BLR)
+- Vehicle fleet management across multiple training centers
+- Booking system for trainers to reserve vehicles
+- Key issuance and return tracking (Security)
+- Messaging system with broadcast and direct messaging
+- Service records and maintenance tracking
+- Analytics and reporting
+- Damage reporting and parts requests
+
+TECHNOLOGY STACK
+----------------
+Backend:
+- Node.js (v18+ recommended)
+- Express.js (v4.x)
+- PostgreSQL (v14+)
+- TypeScript (optional but recommended)
+- JWT for authentication
+- bcrypt for password hashing
+- dotenv for environment variables
+
+Database:
+- PostgreSQL 14+
+- pg (node-postgres) or TypeORM/Prisma (recommended)
+- Database migrations
+
+Authentication:
+- JWT (JSON Web Tokens)
+- bcrypt for password hashing
+- Refresh tokens (recommended)
+
+================================================================================
+DATABASE SCHEMA - POSTGRESQL
+================================================================================
+
+IMPORTANT NOTES:
+----------------
+1. Mileage field has been completely removed from vehicles and service_records tables
+2. Direct messaging allows ANY user to message ANY other user (no role/location restrictions)
+3. Security logs ONLY include 'Key Issued' and 'Vehicle Returned' (not damage/parts requests)
+4. Booking 'purpose' field changed to 'trainingCourse' with support for custom courses
+5. Expected return date & time is set by trainer and is read-only for security
+6. Notification system is required for real-time updates across all features
+7. Dynamic user fetching required for messaging recipient lists
+
+================================================================================
+
+1. USERS TABLE
+--------------
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL CHECK (role IN ('super_admin', 'admin', 'trainer', 'security')),
+    location_code VARCHAR(10) CHECK (location_code IN ('PTC', 'VGTAP', 'NCR', 'BLR', 'ALL')),
+    department VARCHAR(255),
+    employee_id VARCHAR(50) UNIQUE,
+    avatar_url TEXT,
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+    join_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login TIMESTAMP,
+    password_reset_token VARCHAR(255),
+    password_reset_expires TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_users_location ON users(location_code);
+CREATE INDEX idx_users_status ON users(status);
+CREATE INDEX idx_users_employee_id ON users(employee_id);
+
+2. VEHICLES TABLE
+-----------------
+CREATE TABLE vehicles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    academy_location VARCHAR(50) NOT NULL CHECK (academy_location IN ('Pune', 'VGTAP', 'NCR', 'Bangalore')),
+    brand VARCHAR(10) NOT NULL CHECK (brand IN ('VW', 'SA', 'AU')),
+    model VARCHAR(100) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    vehicle_reg_no VARCHAR(50) UNIQUE NOT NULL,
+    vin_no VARCHAR(50) UNIQUE,
+    insurance_validity_date DATE,
+    insurance_status VARCHAR(20) DEFAULT 'Valid' CHECK (insurance_status IN ('Valid', 'Expired', 'NA')),
+    puc_validity_date DATE,
+    puc_status VARCHAR(20) DEFAULT 'Valid' CHECK (puc_status IN ('Valid', 'Expired', 'NA')),
+    status VARCHAR(20) DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive', 'Maintenance', 'Available', 'In Use')),
+    date_decommissioned DATE,
+    allocated_trainer_id UUID REFERENCES users(id),
+    remarks TEXT,
+    year INTEGER,
+    fuel_type VARCHAR(50),
+    color VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_vehicles_location ON vehicles(academy_location);
+CREATE INDEX idx_vehicles_brand ON vehicles(brand);
+CREATE INDEX idx_vehicles_status ON vehicles(status);
+CREATE INDEX idx_vehicles_reg_no ON vehicles(vehicle_reg_no);
+CREATE INDEX idx_vehicles_allocated_trainer ON vehicles(allocated_trainer_id);
+
+3. BOOKINGS TABLE
+-----------------
+CREATE TABLE bookings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE RESTRICT,
+    trainer_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    trainer_name VARCHAR(255) NOT NULL,
+    start_date TIMESTAMP NOT NULL,
+    end_date TIMESTAMP NOT NULL,
+    training_course VARCHAR(255) NOT NULL,  -- Changed from 'purpose' to 'training_course'
+    training_course_custom VARCHAR(255),  -- For "Other" option when custom course is specified
+    requested_location VARCHAR(50) NOT NULL CHECK (requested_location IN ('Pune', 'VGTAP', 'NCR', 'Bangalore')),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'active', 'completed', 'cancelled')),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_dates CHECK (end_date > start_date),
+    CONSTRAINT check_minimum_duration CHECK (end_date - start_date >= INTERVAL '1 hour'),
+    CONSTRAINT check_future_dates CHECK (start_date >= CURRENT_TIMESTAMP)
+);
+
+CREATE INDEX idx_bookings_vehicle ON bookings(vehicle_id);
+CREATE INDEX idx_bookings_trainer ON bookings(trainer_id);
+CREATE INDEX idx_bookings_status ON bookings(status);
+CREATE INDEX idx_bookings_location ON bookings(requested_location);
+CREATE INDEX idx_bookings_dates ON bookings(start_date, end_date);
+CREATE INDEX idx_bookings_created_at ON bookings(created_at);
+
+-- Prevent overlapping bookings for the same vehicle
+CREATE UNIQUE INDEX idx_bookings_no_overlap ON bookings(vehicle_id, start_date, end_date)
+WHERE status NOT IN ('completed', 'cancelled', 'rejected');
+
+4. KEY_ISSUES TABLE (Security - Key Handout Tracking)
+-----------------------------------------------------
+CREATE TABLE key_issues (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    security_officer_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'returned')),
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_key_issues_booking ON key_issues(booking_id);
+CREATE INDEX idx_key_issues_security ON key_issues(security_officer_id);
+CREATE INDEX idx_key_issues_status ON key_issues(status);
+
+5. SECURITY_LOGS TABLE (Audit Trail)
+------------------------------------
+CREATE TABLE security_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    type VARCHAR(50) NOT NULL CHECK (type IN ('Key Issued', 'Vehicle Returned')),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    security_officer_id UUID NOT NULL REFERENCES users(id),
+    security_officer_name VARCHAR(255),  -- Denormalized for performance
+    trainer_id UUID NOT NULL REFERENCES users(id),
+    trainer_name VARCHAR(255),  -- Denormalized for performance
+    vehicle_id UUID NOT NULL REFERENCES vehicles(id),
+    vehicle_reg_no VARCHAR(50),  -- Denormalized for performance
+    vehicle_brand VARCHAR(10),
+    vehicle_model VARCHAR(100),
+    booking_id UUID NOT NULL REFERENCES bookings(id),
+    notes TEXT,
+    return_condition VARCHAR(50) CHECK (return_condition IN ('excellent', 'good', 'fair', 'damaged')),
+    -- NOTE: Damage reports and parts requests are NOT logged in security_logs
+    -- They are handled separately in damage_reports and parts_requests tables
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_security_logs_type ON security_logs(type);
+CREATE INDEX idx_security_logs_security_officer ON security_logs(security_officer_id);
+CREATE INDEX idx_security_logs_trainer ON security_logs(trainer_id);
+CREATE INDEX idx_security_logs_vehicle ON security_logs(vehicle_id);
+CREATE INDEX idx_security_logs_booking ON security_logs(booking_id);
+CREATE INDEX idx_security_logs_timestamp ON security_logs(timestamp);
+
+6. SERVICE_RECORDS TABLE (Vehicle Maintenance History)
+------------------------------------------------------
+CREATE TABLE service_records (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+    vehicle_reg_no VARCHAR(50),  -- Denormalized for performance
+    academy_location VARCHAR(50) NOT NULL,
+    service_type VARCHAR(100) NOT NULL,
+    service_date DATE NOT NULL,
+    cost_incurred DECIMAL(10, 2) DEFAULT 0,
+    description TEXT NOT NULL,
+    parts_replaced TEXT,
+    next_service_date DATE,
+    service_provider VARCHAR(255),
+    created_by UUID REFERENCES users(id),
+    created_by_name VARCHAR(255),  -- Denormalized for performance
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- NOTE: Mileage field has been removed from service_records as per frontend requirements
+
+CREATE INDEX idx_service_records_vehicle ON service_records(vehicle_id);
+CREATE INDEX idx_service_records_location ON service_records(academy_location);
+CREATE INDEX idx_service_records_date ON service_records(service_date);
+
+7. MESSAGES TABLE
+-----------------
+CREATE TABLE messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sender_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sender_name VARCHAR(255) NOT NULL,
+    sender_role VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    recipient_ids UUID[] DEFAULT '{}',
+    recipient_roles VARCHAR(50)[] DEFAULT '{}',
+    location_filter VARCHAR(10),
+    parent_message_id UUID REFERENCES messages(id) ON DELETE SET NULL,
+    read BOOLEAN DEFAULT FALSE,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_messages_sender ON messages(sender_id);
+CREATE INDEX idx_messages_recipient_ids ON messages USING GIN(recipient_ids);
+CREATE INDEX idx_messages_recipient_roles ON messages USING GIN(recipient_roles);
+CREATE INDEX idx_messages_location ON messages(location_filter);
+CREATE INDEX idx_messages_timestamp ON messages(timestamp);
+CREATE INDEX idx_messages_parent ON messages(parent_message_id);
+
+-- Message Read Status (many-to-many relationship for read tracking)
+CREATE TABLE message_reads (
+    message_id UUID REFERENCES messages(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (message_id, user_id)
+);
+
+CREATE INDEX idx_message_reads_user ON message_reads(user_id);
+
+8. REPORTS TABLE (Generated Reports)
+------------------------------------
+CREATE TABLE reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL CHECK (type IN ('vehicle', 'booking', 'trainer', 'maintenance')),
+    description TEXT,
+    location VARCHAR(50),
+    last_generated TIMESTAMP,
+    frequency VARCHAR(20) CHECK (frequency IN ('weekly', 'monthly', 'custom')),
+    status VARCHAR(20) DEFAULT 'ready' CHECK (status IN ('ready', 'generating')),
+    file_size VARCHAR(50),
+    file_path TEXT,
+    created_by UUID REFERENCES users(id),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_reports_type ON reports(type);
+CREATE INDEX idx_reports_location ON reports(location);
+CREATE INDEX idx_reports_status ON reports(status);
+
+9. DAMAGE_REPORTS TABLE (Trainer to Admin)
+------------------------------------------
+CREATE TABLE damage_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE RESTRICT,
+    trainer_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    condition VARCHAR(50) NOT NULL CHECK (condition IN ('Good', 'Minor Damage', 'Major Damage')),
+    damage_description TEXT NOT NULL,
+    reported_to_admin_id UUID NOT NULL REFERENCES users(id),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'acknowledged', 'resolved')),
+    admin_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_damage_reports_booking ON damage_reports(booking_id);
+CREATE INDEX idx_damage_reports_vehicle ON damage_reports(vehicle_id);
+CREATE INDEX idx_damage_reports_trainer ON damage_reports(trainer_id);
+CREATE INDEX idx_damage_reports_admin ON damage_reports(reported_to_admin_id);
+CREATE INDEX idx_damage_reports_status ON damage_reports(status);
+
+10. PARTS_REQUESTS TABLE (Trainer to Admin)
+--------------------------------------------
+CREATE TABLE parts_requests (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    booking_id UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+    vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE RESTRICT,
+    trainer_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    parts_description TEXT NOT NULL,
+    requested_to_admin_id UUID NOT NULL REFERENCES users(id),
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'fulfilled')),
+    admin_notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_parts_requests_booking ON parts_requests(booking_id);
+CREATE INDEX idx_parts_requests_vehicle ON parts_requests(vehicle_id);
+CREATE INDEX idx_parts_requests_trainer ON parts_requests(trainer_id);
+CREATE INDEX idx_parts_requests_admin ON parts_requests(requested_to_admin_id);
+CREATE INDEX idx_parts_requests_status ON parts_requests(status);
+
+11. TRAINING_COURSES TABLE (Reference Data)
+--------------------------------------------
+CREATE TABLE training_courses (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    brand VARCHAR(10) NOT NULL CHECK (brand IN ('VW', 'SA', 'AU')),
+    course_name VARCHAR(255) NOT NULL,
+    course_code VARCHAR(50),
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(brand, course_name)
+);
+
+CREATE INDEX idx_training_courses_brand ON training_courses(brand);
+CREATE INDEX idx_training_courses_active ON training_courses(is_active);
+
+-- Seed data for training courses (based on frontend constants)
+INSERT INTO training_courses (brand, course_name, course_code) VALUES
+-- Skoda (SA) Courses
+('SA', 'ŠKODA Basic Qualification Fundamental', 'SA001'),
+('SA', 'ŠKODA Basic Qualification Electrics', 'SA002'),
+('SA', 'ŠKODA Basic Qualification Technology', 'SA003'),
+('SA', 'ŠKODA Advance Qualification Engines', 'SA004'),
+('SA', 'ŠKODA Advance Qualification Transmission', 'SA005'),
+('SA', 'ŠKODA Advance Qualification HVAC & Convenience Systems', 'SA006'),
+('SA', 'ŠKODA Advance Qualification Running Gear', 'SA007'),
+('SA', 'ŠKODA Diagnostic Qualification Diagnostic Technology', 'SA008'),
+('SA', 'ŠKODA Diagnostic Qualification Master Certification', 'SA009'),
+('SA', 'ŠKODA Basic Body Repair', 'SA010'),
+('SA', 'ŠKODA Advance Body Repair', 'SA011'),
+('SA', 'ŠKODA Expert Body Repair', 'SA012'),
+-- Volkswagen (VW) Courses
+('VW', 'VW Basic Qualification Fundamental', 'VW001'),
+('VW', 'VW Basic Qualification Electrics', 'VW002'),
+('VW', 'VW Basic Qualification Technology', 'VW003'),
+('VW', 'VW Advance Qualification Engines', 'VW004'),
+('VW', 'VW Advance Qualification Transmission', 'VW005'),
+('VW', 'VW Advance Qualification HVAC & Convenience Systems', 'VW006'),
+('VW', 'VW Advance Qualification Running Gear', 'VW007'),
+('VW', 'VW Expert Qualification Diagnostic Technology', 'VW008'),
+('VW', 'VW Expert Qualification Master Certification', 'VW009'),
+('VW', 'VW Basic Body Repair', 'VW010'),
+('VW', 'VW Advance Body Repair', 'VW011'),
+('VW', 'VW Expert Body Repair', 'VW012'),
+-- Audi (AU) Courses
+('AU', 'Audi Basic Qualification Certification', 'AU001'),
+('AU', 'Audi Basics of Engine Technology', 'AU002'),
+('AU', 'Audi Petrol & Diesel Injection Systems', 'AU003'),
+('AU', 'Audi Power Transmission', 'AU004'),
+('AU', 'Audi Electronic Control in Brakes, Suspension & Damping Systems', 'AU005'),
+('AU', 'Audi AC Systems', 'AU006'),
+('AU', 'Audi Advance Electrics & Electronics', 'AU007'),
+('AU', 'Audi Screening Test & Customer Communication', 'AU008'),
+('AU', 'Audi DT Training 2', 'AU009'),
+('AU', 'Audi Diagnostic Practical Test, Viva-Voce', 'AU010'),
+('AU', 'Audi Basic Body Repair', 'AU011'),
+('AU', 'Audi Body Assembly and Sunroof System', 'AU012'),
+('AU', 'Audi Advance Body Repair', 'AU013'),
+('AU', 'Audi Expert Body Repair', 'AU014');
+
+12. NOTIFICATIONS TABLE (Real-time Notifications System)
+----------------------------------------------------------
+CREATE TABLE notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL CHECK (type IN (
+        'booking_created',
+        'booking_approved',
+        'booking_rejected',
+        'booking_cancelled',
+        'key_issued',
+        'vehicle_returned',
+        'damage_reported',
+        'parts_requested',
+        'maintenance_required',
+        'message_received',
+        'system_alert',
+        'user_onboarded',
+        'password_reset',
+        'password_reset_request',
+        'insurance_expiring',
+        'insurance_expired',
+        'puc_expiring',
+        'puc_expired'
+    )),
+    category VARCHAR(50) NOT NULL CHECK (category IN ('booking', 'security', 'maintenance', 'message', 'system', 'compliance', 'user')),
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    read BOOLEAN DEFAULT FALSE,
+    read_at TIMESTAMP,
+    email_sent BOOLEAN DEFAULT FALSE,  -- Track if email notification was sent
+    email_sent_at TIMESTAMP,  -- Timestamp when email was sent
+    action_url VARCHAR(500),  -- URL to navigate to related page (e.g., /trainer/bookings/:id)
+    related_entity_type VARCHAR(50),  -- 'booking', 'vehicle', 'message', etc.
+    related_entity_id UUID,
+    priority VARCHAR(20) DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high', 'urgent')),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP  -- Optional expiration for notifications
+);
+
+CREATE INDEX idx_notifications_user ON notifications(user_id);
+CREATE INDEX idx_notifications_read ON notifications(read);
+CREATE INDEX idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX idx_notifications_type ON notifications(type);
+CREATE INDEX idx_notifications_category ON notifications(category);
+CREATE INDEX idx_notifications_user_read ON notifications(user_id, read);
+CREATE INDEX idx_notifications_email_sent ON notifications(email_sent);
+
+================================================================================
+BACKEND ARCHITECTURE - NODE.JS + EXPRESS.JS
+================================================================================
+
+PROJECT STRUCTURE
+-----------------
+backend/
+├── src/
+│   ├── config/
+│   │   ├── database.ts          # PostgreSQL connection config
+│   │   ├── jwt.ts               # JWT configuration
+│   │   ├── smtp.ts              # SMTP/Email configuration
+│   │   └── env.ts               # Environment variables validation
+│   ├── controllers/
+│   │   ├── auth.controller.ts   # Authentication endpoints
+│   │   ├── user.controller.ts  # User management
+│   │   ├── vehicle.controller.ts
+│   │   ├── booking.controller.ts
+│   │   ├── security.controller.ts
+│   │   ├── message.controller.ts
+│   │   ├── service.controller.ts
+│   │   └── report.controller.ts
+│   ├── services/
+│   │   ├── auth.service.ts      # Business logic
+│   │   ├── user.service.ts
+│   │   ├── vehicle.service.ts
+│   │   ├── booking.service.ts
+│   │   ├── security.service.ts
+│   │   ├── message.service.ts
+│   │   ├── service.service.ts
+│   │   ├── report.service.ts
+│   │   ├── notification.service.ts  # Notification management
+│   │   └── email.service.ts          # Email sending via SMTP
+│   ├── jobs/
+│   │   ├── expiry-checker.ts    # Background job for PUC/Insurance expiry
+│   │   └── scheduler.ts          # Cron jobs scheduler
+│   ├── models/
+│   │   ├── User.model.ts        # Database models/queries
+│   │   ├── Vehicle.model.ts
+│   │   ├── Booking.model.ts
+│   │   ├── SecurityLog.model.ts
+│   │   ├── ServiceRecord.model.ts
+│   │   ├── Message.model.ts
+│   │   └── Report.model.ts
+│   ├── middleware/
+│   │   ├── auth.middleware.ts   # JWT verification
+│   │   ├── role.middleware.ts    # Role-based access control
+│   │   ├── location.middleware.ts # Location filtering
+│   │   ├── validation.middleware.ts
+│   │   └── error.middleware.ts   # Error handling
+│   ├── routes/
+│   │   ├── auth.routes.ts
+│   │   ├── user.routes.ts
+│   │   ├── vehicle.routes.ts
+│   │   ├── booking.routes.ts
+│   │   ├── security.routes.ts
+│   │   ├── message.routes.ts
+│   │   ├── service.routes.ts
+│   │   └── report.routes.ts
+│   ├── utils/
+│   │   ├── hashPassword.ts      # Password hashing
+│   │   ├── generateToken.ts     # JWT generation
+│   │   ├── validateRole.ts
+│   │   ├── normalizeLocation.ts
+│   │   ├── exportCSV.ts         # CSV export utilities
+│   │   └── emailService.ts     # SMTP email service
+│   ├── services/
+│   │   ├── notification.service.ts  # Notification creation and email sending
+│   │   └── compliance.service.ts   # Compliance checks (insurance/PUC expiry)
+│   ├── jobs/
+│   │   ├── complianceCheck.job.ts  # Scheduled job for compliance checks
+│   │   └── emailQueue.job.ts       # Background job for email sending
+│   ├── templates/
+│   │   └── emails/                # Email templates (HTML/Text)
+│   │       ├── welcome.html
+│   │       ├── passwordReset.html
+│   │       ├── bookingApproved.html
+│   │       ├── complianceAlert.html
+│   │       └── ...
+│   ├── types/
+│   │   └── index.ts             # TypeScript types
+│   └── app.ts                    # Express app setup
+├── migrations/                   # Database migrations
+├── seeds/                        # Seed data
+├── tests/                        # Unit and integration tests
+├── .env.example
+├── package.json
+├── tsconfig.json
+└── README.md
+
+================================================================================
+API ENDPOINTS SPECIFICATION
+================================================================================
+
+BASE URL: http://localhost:5000/api (or your domain)
+All endpoints require JWT token in Authorization header except /auth/login and /auth/forgot-password
+
+AUTHENTICATION ENDPOINTS
+-------------------------
+POST   /api/auth/login
+  Body: { email, password, role }
+  Response: { token, refreshToken, user: { id, name, email, role, location } }
+
+POST   /api/auth/logout
+  Headers: { Authorization: Bearer <token> }
+
+POST   /api/auth/forgot-password
+  Body: { email }
+  Response: { message: "Reset email sent" }
+  Actions:
+    - Validates email exists
+    - Generates password reset token
+    - Sends email with reset link (via SMTP)
+    - Creates notification: type='password_reset', email sent
+    - Token expires in 1 hour
+
+POST   /api/auth/reset-password
+  Body: { token, newPassword }
+  Response: { message: "Password reset successful" }
+  Actions:
+    - Validates reset token
+    - Updates password (hashed with bcrypt)
+    - Sends confirmation email (via SMTP)
+    - Creates notification: type='password_reset', email sent
+    - Invalidates reset token
+
+POST   /api/auth/refresh-token
+  Body: { refreshToken }
+  Response: { token, refreshToken }
+
+USER ENDPOINTS
+--------------
+GET    /api/users                    # Get all users (filtered by location for admin)
+  Query: ?role=admin&status=active&location=PTC
+  Access: super_admin (all), admin (own location)
+  Response: Returns dynamically loaded users from database
+  Note: Used for recipient selection in messaging system
+
+GET    /api/users/for-messaging       # Get all users for direct messaging
+  Access: All authenticated users
+  Response: Returns ALL users (except current user) without location filtering
+  Purpose: Used by messaging system to show available recipients
+  Note: Every user can see all other users for direct messaging
+
+GET    /api/users/:id                # Get user by ID
+  Access: Own profile or super_admin
+
+POST   /api/users                     # Create new user
+  Body: { email, password, name, role, location, department, employeeId }
+  Access: super_admin, admin (own location)
+  Actions:
+    - Creates user with hashed password
+    - Generates temporary password if provided
+    - Sends welcome email with login credentials (via SMTP)
+    - Creates notification: type='user_onboarded', email sent
+    - Email includes: login URL, temporary password (if applicable), system introduction
+  Actions:
+    - Create user account
+    - Hash password with bcrypt
+    - Create notification (type: 'user_onboarded') for new user
+    - Send welcome email via SMTP with:
+      * Login credentials (or temporary password)
+      * Welcome message
+      * System access information
+      * Role-specific onboarding instructions
+
+PUT    /api/users/:id                 # Update user
+  Access: Own profile, super_admin, admin (own location)
+
+DELETE /api/users/:id                 # Delete/deactivate user
+  Access: super_admin, admin (own location)
+  Note: Sets status to 'inactive' rather than hard delete (soft delete)
+
+PATCH  /api/users/:id/status          # Update user status
+  Body: { status: 'active' | 'inactive' }
+  Access: super_admin, admin
+  Note: 'suspended' status has been removed - use 'inactive' instead
+
+VEHICLE ENDPOINTS
+-----------------
+GET    /api/vehicles                  # Get all vehicles (filtered by location)
+  Query: ?location=Pune&brand=VW&status=Active
+  Access: All authenticated users (location filtered for admin/security)
+
+GET    /api/vehicles/:id              # Get vehicle details
+  Access: All authenticated users
+
+POST   /api/vehicles                   # Create new vehicle
+  Body: { academyLocation, brand, model, name, vehicleRegNo, vinNo, ... }
+  Access: admin, super_admin (own location for admin)
+
+PUT    /api/vehicles/:id               # Update vehicle
+  Access: admin, super_admin (own location for admin)
+
+PATCH  /api/vehicles/:id/status        # Update vehicle status
+  Body: { status: 'Active' | 'Inactive' | 'Maintenance' }
+  Access: admin, super_admin
+
+DELETE /api/vehicles/:id               # Delete vehicle (soft delete)
+  Access: super_admin only
+
+GET    /api/vehicles/:id/service-records # Get vehicle service history
+  Access: All authenticated users
+
+BOOKING ENDPOINTS
+-----------------
+GET    /api/bookings                   # Get all bookings (filtered by location)
+  Query: ?status=pending&location=Pune&trainerId=xxx
+  Access: All authenticated users (location filtered)
+
+GET    /api/bookings/:id                # Get booking details
+  Access: Owner, admin, security (same location)
+
+POST   /api/bookings                    # Create new booking
+  Body: { 
+    vehicleId, 
+    startDate, 
+    endDate, 
+    trainingCourse,  -- Changed from 'purpose' to 'trainingCourse'
+    trainingCourseCustom,  -- Optional: for "Other" custom course
+    requestedLocation, 
+    notes 
+  }
+  Access: trainer
+  Validation:
+    - startDate must be in the future (not past)
+    - endDate must be after startDate
+    - Minimum booking duration: 1 hour
+    - Check for overlapping bookings for same vehicle
+  Response: Creates notification for admin for approval
+  Actions:
+    - Creates booking with 'pending' status
+    - Creates in-app notification: type='booking_created' for admin
+    - Sends email notification to admin (via SMTP) with booking details
+    - Email includes: trainer name, vehicle details, dates, training course, action URL
+
+PUT    /api/bookings/:id                 # Update booking
+  Access: Owner (trainer), admin (same location)
+
+PATCH  /api/bookings/:id/status          # Update booking status
+  Body: { status: 'approved' | 'rejected' | 'active' | 'completed' | 'cancelled' }
+  Access: admin (approve/reject), security (activate), trainer (cancel own)
+  Notifications (In-app + Email):
+    - On approval: Notify trainer and security (both in-app + email via SMTP)
+    - On rejection: Notify trainer (both in-app + email via SMTP)
+    - On activation: Notify trainer (both in-app + email via SMTP)
+    - On completion: Notify trainer and admin (both in-app + email via SMTP)
+  Email Content:
+    - Booking status update
+    - Vehicle details
+    - Date/time information
+    - Action required (if any)
+
+DELETE /api/bookings/:id                 # Cancel booking
+  Access: Owner (trainer), admin (same location)
+  Note: Updates vehicle status back to 'Available' if vehicle was 'In Use'
+
+GET    /api/bookings/check-availability   # Check vehicle availability
+  Query: ?vehicleId=xxx&startDate=2025-01-01T09:00:00Z&endDate=2025-01-01T17:00:00Z
+  Access: All authenticated users
+  Response: Returns boolean indicating if vehicle is available for the time range
+  Validation:
+    - Checks for overlapping bookings
+    - Checks if vehicle status is 'Available' or 'Active'
+    - Prevents multiple simultaneous bookings of same vehicle
+
+SECURITY ENDPOINTS
+------------------
+GET    /api/security/bookings            # Get approved bookings for key issue
+  Query: ?status=approved&location=Pune
+  Access: security (own location)
+  Response: Returns bookings where:
+    - Status is 'approved' or 'active'
+    - Requested location matches security's location
+    - Expected return date & time is set by trainer (read-only for security)
+
+POST   /api/security/issue-key            # Issue key to trainer
+  Body: { bookingId, notes }
+  Access: security (own location)
+  Actions:
+    - Updates booking status to 'active'
+    - Updates vehicle status to 'In Use'
+    - Creates security log entry (type: 'Key Issued')
+    - Creates notification for trainer (in-app + email via SMTP)
+    - Email includes key issuance details, vehicle info, and return time
+  Note: Expected return date & time is set by trainer during booking (read-only for security)
+
+POST   /api/security/return-vehicle       # Process vehicle return
+  Body: { bookingId, condition, notes }
+  Access: security (own location)
+  Actions:
+    - Updates booking status to 'completed'
+    - Updates vehicle status to 'Available' (or 'Maintenance' if condition is 'damaged')
+    - Creates security log entry (type: 'Vehicle Returned')
+    - Creates notification for trainer and admin (in-app + email via SMTP)
+    - Email includes return confirmation, vehicle condition, and next steps
+  Condition values: 'excellent', 'good', 'fair', 'damaged'
+  Note: Damage reports and parts requests are NOT handled by security - those are admin responsibilities
+
+GET    /api/security/logs                 # Get security logs
+  Query: ?type=Key Issued&startDate=xxx&endDate=xxx&timePeriod=all|lastMonth|last3Months
+  Access: security (own location), admin (own location)
+  Response: Returns only 'Key Issued' and 'Vehicle Returned' logs
+  Note: Does NOT include damage reports or parts requests (those are separate endpoints)
+
+GET    /api/security/logs/export          # Export logs to CSV
+  Query: ?type=Key Issued&format=csv&timePeriod=all|lastMonth|last3Months
+  Access: security, admin
+  Response: CSV file with filtered logs based on timePeriod parameter
+
+SERVICE RECORDS ENDPOINTS
+-------------------------
+GET    /api/service-records               # Get service records
+  Query: ?vehicleId=xxx&location=Pune
+  Access: All authenticated users (location filtered)
+
+POST   /api/service-records               # Add service record
+  Body: { vehicleId, serviceType, serviceDate, costIncurred, description, ... }
+  Access: admin (own location)
+  Actions:
+    - Creates service record entry
+    - If maintenance_required flag is set:
+      * Creates in-app notification: type='maintenance_required' for admin
+      * Sends email notification (via SMTP) with maintenance details
+    - Updates vehicle next_service_date if provided
+
+PUT    /api/service-records/:id           # Update service record
+  Access: admin (own location)
+
+DELETE /api/service-records/:id            # Delete service record
+  Access: admin (own location)
+
+MESSAGING ENDPOINTS
+-------------------
+GET    /api/messages                      # Get user's messages
+  Query: ?type=broadcast&location=PTC
+  Access: All authenticated users
+  Response: Filters messages based on:
+    - Direct messages: All messages where user is recipient (across all locations)
+    - Broadcast messages: Based on location filter and role (admin broadcasts filtered by location)
+
+GET    /api/messages/recipients            # Get available recipients for direct messaging
+  Access: All authenticated users
+  Response: Returns ALL users (except current user) for direct messaging
+  Note: No role or location restrictions - any user can message any other user
+
+POST   /api/messages                      # Send message
+  Body: { content, recipientIds: [], recipientRoles: [], locationFilter, parentMessageId }
+  Access: All authenticated users
+  Note: 
+    - Broadcast only for super_admin and admin
+    - Direct messages: recipientIds must contain specific user IDs
+    - Direct messages bypass location filtering entirely
+    - Any user can send direct message to any other user
+
+PATCH  /api/messages/:id/read              # Mark message as read
+  Access: Message recipient
+  Note: Updates message_reads table and removes unread indicator
+
+GET    /api/messages/unread-count          # Get unread message count
+  Access: All authenticated users
+  Response: Returns count of unread messages for current user
+
+DAMAGE REPORTS & PARTS REQUESTS
+--------------------------------
+POST   /api/damage-reports                 # Report vehicle damage
+  Body: { bookingId, condition, damageDescription }
+  Access: trainer (own active bookings only)
+  Actions:
+    - Creates damage report entry
+    - Automatically routes to location admin (based on booking location)
+    - Creates in-app notification: type='damage_reported' for admin
+    - Sends email notification to admin (via SMTP) with damage details
+    - Email includes: vehicle info, trainer name, condition, description, urgency level
+    - Does NOT create security log entry (admin responsibility only)
+  Condition values: 'Good', 'Minor Damage', 'Major Damage'
+
+GET    /api/damage-reports                  # Get damage reports
+  Query: ?status=pending&location=Pune
+  Access: admin (own location), super_admin (all locations)
+  Response: Returns damage reports filtered by location for admin
+
+PATCH  /api/damage-reports/:id/status       # Update damage report status
+  Body: { status, adminNotes }
+  Access: admin (own location), super_admin
+  Status values: 'pending', 'acknowledged', 'resolved'
+
+POST   /api/parts-requests                  # Request parts
+  Body: { bookingId, partsDescription }
+  Access: trainer (own active bookings only)
+  Actions:
+    - Creates parts request entry
+    - Automatically routes to location admin (based on booking location)
+    - Creates notification for admin (in-app + email via SMTP)
+    - Email includes parts description, vehicle details, trainer info, and priority
+    - Does NOT create security log entry (admin responsibility only)
+
+GET    /api/parts-requests                  # Get parts requests
+  Query: ?status=pending&location=Pune
+  Access: admin (own location), super_admin (all locations)
+  Response: Returns parts requests filtered by location for admin
+
+PATCH  /api/parts-requests/:id/status       # Update parts request status
+  Body: { status, adminNotes }
+  Access: admin (own location), super_admin
+  Status values: 'pending', 'approved', 'rejected', 'fulfilled'
+
+NOTIFICATION ENDPOINTS
+----------------------
+GET    /api/notifications                    # Get user's notifications
+  Query: ?category=booking&read=false&email_sent=true
+  Access: All authenticated users
+  Response: Returns notifications for current user, sorted by created_at DESC
+  Note: Includes email_sent, email_sent_at, email_failed status fields
+
+GET    /api/notifications/unread-count         # Get unread notification count
+  Access: All authenticated users
+  Response: { count: number }
+
+PATCH  /api/notifications/:id/read            # Mark notification as read
+  Access: Notification owner
+  Actions: Updates read status and read_at timestamp
+
+PATCH  /api/notifications/read-all            # Mark all notifications as read
+  Access: All authenticated users
+  Actions: Marks all user's notifications as read
+
+DELETE /api/notifications/:id                # Delete notification
+  Access: Notification owner
+
+POST   /api/notifications/resend-email/:id   # Resend failed email notification
+  Access: System/admin only
+  Actions: Retries sending email for failed notifications
+
+GET    /api/notifications/email-status        # Get email delivery statistics
+  Access: admin, super_admin
+  Response: Statistics about email delivery success/failure rates
+
+POST   /api/notifications/test-email          # Test email configuration
+  Access: super_admin only
+  Body: { email }
+  Actions: Sends test email to verify SMTP configuration
+  Response: { message: "Test email sent", emailSent: boolean }
+
+GET    /api/compliance/check-expiry          # Manual compliance check trigger
+  Access: admin, super_admin
+  Actions: Runs compliance check for insurance/PUC expiry
+  Response: { checked: number, alertsCreated: number, emailsSent: number }
+
+TRAINING COURSES ENDPOINTS
+--------------------------
+GET    /api/training-courses                 # Get training courses
+  Query: ?brand=VW|SA|AU
+  Access: All authenticated users
+  Response: Returns courses filtered by brand, includes 'Other' option for custom courses
+  Used for: Booking form course selection dropdown
+
+GET    /api/training-courses/:id              # Get course details
+  Access: All authenticated users
+
+GLOBAL SEARCH ENDPOINTS
+-----------------------
+GET    /api/search                            # Global search across entities
+  Query: ?q=searchTerm&entity=all|vehicles|bookings|users|records
+  Access: All authenticated users
+  Response: Returns search results grouped by entity type
+  Entities searched:
+    - Vehicles (by reg no, brand, model, name)
+    - Bookings (by trainer name, vehicle, purpose)
+    - Users (by name, email, role, employee ID)
+    - Service Records (by vehicle, description, service type)
+  Note: Results filtered by location for admin/security users
+
+REPORTS & ANALYTICS ENDPOINTS
+------------------------------
+GET    /api/reports                        # Get all reports
+  Access: admin, super_admin
+
+POST   /api/reports                        # Create custom report
+  Body: { name, type, location, dateRange, frequency }
+  Access: admin, super_admin
+
+GET    /api/reports/:id                    # Get report details
+  Access: admin, super_admin
+
+GET    /api/reports/:id/download            # Download report CSV
+  Access: admin, super_admin
+
+GET    /api/analytics                      # Get analytics data
+  Query: ?timeRange=6months&location=Pune
+  Access: admin (own location), super_admin (all)
+
+GET    /api/analytics/export                # Export analytics CSV
+  Query: ?timeRange=6months
+  Access: admin, super_admin
+
+================================================================================
+AUTHENTICATION & AUTHORIZATION
+================================================================================
+
+JWT TOKEN STRUCTURE
+-------------------
+{
+  "userId": "uuid",
+  "email": "user@example.com",
+  "role": "admin",
+  "location": "PTC",
+  "iat": 1234567890,
+  "exp": 1234571490  // 1 hour expiration
+}
+
+REFRESH TOKEN
+-------------
+Store refresh tokens in database or Redis
+- Longer expiration (7-30 days)
+- Rotate on use
+- Revoke on logout
+
+ROLE-BASED ACCESS CONTROL (RBAC)
+---------------------------------
+1. super_admin: Full access to all locations and all operations
+2. admin: Access limited to assigned location (PTC, VGTAP, NCR, BLR)
+3. trainer: Can book vehicles across all locations, view own bookings
+4. security: Access limited to assigned location for key operations
+
+LOCATION-BASED FILTERING
+-------------------------
+- Admin and Security users automatically filter data by their location
+- Super Admin sees all locations
+- Trainers can book from any location but see own bookings
+- All queries should include location filtering where applicable
+
+MIDDLEWARE STACK
+----------------
+1. auth.middleware.ts - Verify JWT token
+2. role.middleware.ts - Check user role permissions
+3. location.middleware.ts - Apply location filtering
+4. validation.middleware.ts - Validate request data
+5. error.middleware.ts - Global error handler
+
+================================================================================
+DATA MODELS & BUSINESS LOGIC
+================================================================================
+
+USER MODEL
+----------
+- Email must be unique
+- Password must be hashed using bcrypt (salt rounds: 10)
+- Employee ID must be unique
+- Location validation: Must match one of the valid location codes
+- Status: Only 'active' or 'inactive' (no 'suspended')
+
+VEHICLE MODEL
+-------------
+- Vehicle registration number must be unique
+- VIN number should be unique (if provided)
+- Status transitions:
+  * Available -> In Use (when booking activated/key issued)
+  * In Use -> Available (when booking completed/cancelled)
+  * In Use -> Maintenance (if vehicle returned with damage)
+  * Any -> Maintenance (admin action)
+  * Maintenance -> Available (admin action)
+  * Any -> Inactive (admin/super_admin only)
+  * Any -> Active (admin/super_admin only)
+- NOTE: Mileage field has been removed from the schema
+- Dynamic updates: Real-time fetching and refresh mechanisms
+- Allocated trainer tracking:
+  * Denormalized trainer name for performance
+  * Updated when vehicle is allocated/deallocated
+- Notification triggers:
+  * When status changed to 'Maintenance' -> Notify admin
+  * When insurance/PUC expires -> Notify admin
+
+BOOKING MODEL
+-------------
+- Prevent overlapping bookings for same vehicle (strict enforcement)
+- Booking validation:
+  * startDate must be in the future (not past dates)
+  * endDate must be strictly after startDate
+  * Minimum booking duration: 1 hour
+  * Check vehicle availability before allowing booking
+- Booking status flow:
+  * pending -> approved/rejected (admin)
+  * approved -> active (security issues key)
+  * active -> completed (security processes return)
+  * Can be cancelled at any time by trainer or admin
+- Vehicle status automatically updated based on booking status:
+  * When booking approved -> Vehicle remains 'Available'
+  * When key issued (active) -> Vehicle status becomes 'In Use'
+  * When returned (completed) -> Vehicle status becomes 'Available' (or 'Maintenance' if damaged)
+- Trainers can book vehicles from any location
+- Expected return date & time:
+  * Set by trainer during booking creation (mandatory field)
+  * Read-only for security personnel
+  * Used for tracking expected returns
+- Training Course:
+  * Changed from 'purpose' to 'trainingCourse' field
+  * Can be a predefined course or custom ('Other' option)
+  * Custom courses stored in 'trainingCourseCustom' field
+- Notifications:
+  * Booking created -> Admin notified
+  * Booking approved -> Trainer and Security notified
+  * Booking rejected -> Trainer notified
+  * Booking activated -> Trainer notified
+  * Booking completed -> Trainer and Admin notified
+
+MESSAGE MODEL
+-------------
+- Broadcast messages:
+  * Super Admin: Can broadcast to all or specific roles (all locations)
+  * Admin: Can broadcast to roles in their location only
+- Direct messages: 
+  * ANY user can send direct messages to ANY other user across all roles and locations
+  * No restrictions based on role or location for direct messaging
+  * Supports cross-location communication (trainer ↔ security, admin ↔ trainer, etc.)
+- Location filtering: Admin broadcasts automatically filtered by their location
+- Direct messages bypass location filtering entirely
+- Replies: Use parentMessageId to track thread
+- Read tracking: Use message_reads junction table
+- User recipient list: Must fetch all users dynamically from database for recipient selection
+
+SECURITY LOGS
+-------------
+- Created automatically when:
+  * Security officer issues a key (type: 'Key Issued')
+  * Security officer processes vehicle return (type: 'Vehicle Returned')
+- Do NOT log:
+  * Damage reports (handled in damage_reports table, admin responsibility)
+  * Parts requests (handled in parts_requests table, admin responsibility)
+  * These are NOT security responsibilities
+- Include full audit trail:
+  * Timestamp, security officer (ID and name), trainer (ID and name)
+  * Vehicle (ID, reg_no, brand, model), booking ID
+  * Condition notes, return condition (for returns)
+- Export functionality:
+  * Support time period filters: All, Last Month, Last 3 Months, etc.
+  * CSV export with all relevant fields
+- Location filtering:
+  * Security can only see logs for their assigned location
+  * Admin can see logs for their assigned location
+  * Super admin can see all logs
+
+SERVICE RECORDS
+---------------
+- Linked to vehicles by vehicle_id
+- Cost accumulation: Sum all costs for a vehicle
+- Location-specific: Admins only see records for their location
+- Can include parts replaced, service provider, next service date
+- NOTE: Mileage field has been removed from the schema
+- Dynamic updates: Real-time fetching and refresh mechanisms
+- Notification triggers (In-app + Email):
+  * When service indicates maintenance needed -> Notify admin (email via SMTP)
+  * When next service date approaches -> Notify admin (email via SMTP)
+
+VEHICLE COMPLIANCE ALERTS
+--------------------------
+- Insurance & PUC Expiry Monitoring:
+  * Background job runs daily to check expiry dates
+  * Insurance expired: Creates notification + sends email to admin (type='insurance_expiry')
+  * Insurance expiring soon (within 7 days): Creates notification + sends email to admin (type='insurance_expiring_soon')
+  * PUC expired: Creates notification + sends email to admin (type='puc_expiry')
+  * PUC expiring soon (within 7 days): Creates notification + sends email to admin (type='puc_expiring_soon')
+- Email includes: Vehicle details, expiry date, action required, urgency level
+- Notifications grouped by location (admin receives alerts for their location vehicles)
+
+================================================================================
+INTEGRATION WITH FRONTEND
+================================================================================
+
+API BASE CONFIGURATION
+----------------------
+In frontend, create: src/config/api.ts
+
+```typescript
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
+export const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add token to requests
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Handle token refresh
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      // Try to refresh token
+      // If fails, redirect to login
+    }
+    return Promise.reject(error);
+  }
+);
+```
+
+REPLACING LOCALSTORAGE WITH API CALLS
+--------------------------------------
+1. Create API service files:
+   - src/services/auth.service.ts
+   - src/services/user.service.ts
+   - src/services/vehicle.service.ts
+   - src/services/booking.service.ts
+   - src/services/message.service.ts
+   - src/services/security.service.ts
+   - src/services/service.service.ts
+
+2. Update hooks:
+   - Replace localStorage.getItem/setItem with API calls
+   - Use React Query for data fetching and caching
+   - Handle loading and error states
+
+3. Example transformation:
+
+   BEFORE (useBookings.ts):
+   ```typescript
+   const stored = localStorage.getItem('app_bookings');
+   const bookings = stored ? JSON.parse(stored) : [];
+   ```
+
+   AFTER (useBookings.ts):
+   ```typescript
+   const { data: bookings, isLoading, error } = useQuery({
+     queryKey: ['bookings'],
+     queryFn: () => bookingService.getAll(),
+   });
+   ```
+
+ENVIRONMENT VARIABLES
+---------------------
+Frontend (.env):
+```
+VITE_API_BASE_URL=http://localhost:5000/api
+```
+
+Backend (.env):
+```
+NODE_ENV=production
+PORT=5000
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=skoda_vehicle_booking
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+JWT_SECRET=your_jwt_secret_key
+JWT_REFRESH_SECRET=your_refresh_secret_key
+JWT_EXPIRES_IN=1h
+JWT_REFRESH_EXPIRES_IN=7d
+CORS_ORIGIN=http://localhost:5173
+```
+
+================================================================================
+STEP-BY-STEP BUILDING INSTRUCTIONS
+================================================================================
+
+PHASE 1: SETUP PROJECT STRUCTURE
+---------------------------------
+Prompt 1: "Create a new Node.js backend project using Express.js and TypeScript for
+a vehicle booking management system. Set up the project structure with folders for
+controllers, services, models, middleware, routes, and utils. Include package.json with
+necessary dependencies: express, pg, jsonwebtoken, bcrypt, dotenv, cors, express-validator.
+Set up TypeScript configuration and include nodemon for development."
+
+PHASE 2: DATABASE SETUP
+-----------------------
+Prompt 2: "Create PostgreSQL database schema for the vehicle booking system. Include
+tables for users, vehicles, bookings, key_issues, security_logs, service_records,
+messages, reports, damage_reports, and parts_requests. Add proper indexes, foreign keys,
+constraints, and check constraints for data integrity. Create a migration system using
+either raw SQL files or a migration tool like node-pg-migrate."
+
+PHASE 3: DATABASE CONNECTION & MODELS
+-------------------------------------
+Prompt 3: "Implement database connection using pg (node-postgres) with connection pooling.
+Create model files for each entity (User, Vehicle, Booking, etc.) with functions for
+CRUD operations. Include helper functions for location normalization and data filtering.
+Handle database errors gracefully and return appropriate error messages."
+
+PHASE 4: AUTHENTICATION SYSTEM
+------------------------------
+Prompt 4: "Implement JWT-based authentication system. Create auth.controller.ts and
+auth.service.ts with endpoints for login, logout, forgot password, and reset password.
+Use bcrypt for password hashing. Generate JWT tokens with user role and location.
+Implement refresh token mechanism. Create auth.middleware.ts to verify tokens on
+protected routes."
+
+PHASE 5: MIDDLEWARE IMPLEMENTATION
+----------------------------------
+Prompt 5: "Create middleware for role-based access control (RBAC) and location filtering.
+Implement role.middleware.ts to check if user has required role. Create
+location.middleware.ts to automatically filter data based on user's assigned location.
+Implement validation middleware using express-validator. Create error handling middleware
+for consistent error responses."
+
+PHASE 6: USER MANAGEMENT ENDPOINTS
+-----------------------------------
+Prompt 6: "Implement user management endpoints. Create user.controller.ts and
+user.service.ts with CRUD operations. Ensure super_admin can access all users, while
+admin can only access users in their location. Include endpoints for updating user
+status (active/inactive). Implement email uniqueness validation and employee ID
+uniqueness validation."
+
+PHASE 7: VEHICLE MANAGEMENT ENDPOINTS
+--------------------------------------
+Prompt 7: "Implement vehicle management endpoints. Create vehicle.controller.ts and
+vehicle.service.ts. Include CRUD operations with location-based filtering. Implement
+vehicle status management (Active, Inactive, Maintenance, Available, In Use).
+Add endpoint to get vehicles by location, brand, and status. Include validation
+for unique vehicle registration numbers and VIN numbers."
+
+PHASE 8: BOOKING SYSTEM
+------------------------
+Prompt 8: "Implement booking management endpoints. Create booking.controller.ts and
+booking.service.ts. Include functionality to create bookings with validation: startDate
+must be in future, endDate must be after startDate, minimum duration 1 hour. Use
+'trainingCourse' field instead of 'purpose', support custom courses via 'trainingCourseCustom'.
+Expected return date & time is set by trainer (read-only for security). Check vehicle
+availability and prevent overlapping bookings (strict enforcement). Implement status
+transitions: pending -> approved -> active -> completed. Automatically update vehicle
+status when bookings are activated (In Use) or completed (Available or Maintenance if
+damaged). Include location filtering for admin users. Implement notification system:
+booking created -> notify admin, approved -> notify trainer & security, etc."
+
+PHASE 9: SECURITY ENDPOINTS
+----------------------------
+Prompt 9: "Implement security endpoints for key issuance and vehicle returns. Create
+security.controller.ts and security.service.ts. Include endpoints to get approved
+bookings for key issue (expected return date & time is read-only, set by trainer).
+Issue keys to trainers (updates booking to active, vehicle to In Use, creates security log).
+Process vehicle returns (updates booking to completed, vehicle to Available/Maintenance,
+creates security log). Security logs should ONLY include 'Key Issued' and 'Vehicle Returned'
+types - do NOT include damage reports or parts requests (those are admin responsibilities).
+Include location filtering for security officers. Support time period filters for log export
+(All, Last Month, Last 3 Months, etc.). Include notification triggers for trainer and admin."
+
+PHASE 10: MESSAGING SYSTEM
+---------------------------
+Prompt 10: "Implement messaging system endpoints. Create message.controller.ts and
+message.service.ts. Support direct messages and broadcast messages. Restrict broadcast
+to super_admin and admin only (admin broadcasts limited to their location). For direct
+messages: ANY user can send direct messages to ANY other user across all roles and locations
+with NO restrictions. Implement endpoint GET /api/messages/recipients that returns ALL
+users (except current user) for recipient selection. Implement message read tracking,
+reply functionality, and location-based filtering for broadcast messages only (direct
+messages bypass location filtering). Support dynamic user fetching for recipient lists."
+
+PHASE 11: SERVICE RECORDS
+--------------------------
+Prompt 11: "Implement service records endpoints. Create service.controller.ts and
+service.service.ts. Include CRUD operations for service records linked to vehicles.
+Calculate total cost incurred per vehicle. Implement location-based filtering for admin
+users. Include endpoints to get service history for a specific vehicle."
+
+PHASE 12: DAMAGE REPORTS & PARTS REQUESTS
+------------------------------------------
+Prompt 12: "Implement endpoints for damage reports and parts requests. Create separate
+controllers and services. Allow trainers to create damage reports and parts requests
+for their active bookings. These should be automatically routed to the location admin.
+Include endpoints for admins to view and update status of these reports/requests."
+
+PHASE 13: EMAIL & NOTIFICATION SYSTEM
+--------------------------------------
+Prompt 13: "Implement comprehensive email notification system using SMTP. Create
+email.service.ts with nodemailer configuration. Implement HTML email templates for all
+notification types (user onboarding, password reset, booking flows, damage reports,
+parts requests, maintenance, insurance/PUC expiry). Create notification.service.ts to
+manage both in-app and email notifications. Implement background job system using
+node-cron to check insurance/PUC expiry dates daily. Send email alerts for expired
+and expiring soon (7 days before) insurance/PUC. Update notifications table to track
+email delivery status. Implement email retry logic for failed sends. Create email
+template generator utility. Configure SMTP settings via environment variables. Ensure
+all workflow triggers send both in-app notifications and emails."
+
+PHASE 14: REPORTS & ANALYTICS
+------------------------------
+Prompt 14: "Implement reports and analytics endpoints. Create report.controller.ts,
+report.service.ts, and analytics.service.ts. Generate CSV reports for vehicles, bookings,
+trainers, and maintenance. Calculate analytics including fleet utilization, booking trends,
+trainer metrics, and compliance status. Support date range filtering and location filtering
+for admin users. Implement global search endpoint (GET /api/search) that searches across
+vehicles, bookings, users, and service records with location-based filtering for admin users.
+Implement training courses endpoints for course selection in booking forms."
+
+PHASE 15: ERROR HANDLING & VALIDATION
+--------------------------------------
+Prompt 15: "Implement comprehensive error handling and validation. Create custom error
+classes and error middleware. Validate all input data using express-validator. Return
+consistent error responses with appropriate HTTP status codes. Handle database errors,
+validation errors, and authentication errors gracefully."
+
+PHASE 16: TESTING & DOCUMENTATION
+----------------------------------
+Prompt 16: "Write unit tests for services and integration tests for API endpoints using
+Jest and Supertest. Create API documentation using Swagger/OpenAPI. Include examples for
+all endpoints. Test authentication, authorization, location filtering, and all business
+logic scenarios. Test email sending functionality with mock SMTP server. Test background
+jobs for expiry checks."
+
+PHASE 17: PRODUCTION READINESS
+------------------------------
+Prompt 17: "Configure production settings including environment variables, CORS settings,
+rate limiting, request logging, and security headers. Set up database connection pooling
+optimized for production. Implement request validation, SQL injection prevention, and
+XSS protection. Add health check endpoint and monitoring capabilities. Configure production
+SMTP server (Gmail SMTP, SendGrid, AWS SES, etc.). Set up email queue system for reliable
+delivery (Redis + Bull or similar). Implement email rate limiting to avoid SMTP limits.
+Set up monitoring for background jobs and email delivery rates."
+
+PHASE 18: FRONTEND INTEGRATION
+-------------------------------
+Prompt 18: "Update frontend to integrate with backend API. Replace all localStorage calls
+with API service calls. Implement React Query for data fetching and caching. Update
+authentication context to use JWT tokens. Add API interceptors for automatic token
+refresh. Handle loading and error states in all components. Implement dynamic user fetching
+for messaging recipient lists using GET /api/users/for-messaging. Ensure direct messaging
+allows any user to message any other user. Implement notification system integration.
+Update booking form to use training courses endpoint. Implement global search functionality.
+Test all features end-to-end including cross-location communication. Display email
+notification status in UI (if email was sent successfully)."
+
+PHASE 19: DEPLOYMENT
+---------------------
+Prompt 19: "Set up deployment configuration for both frontend and backend. Configure
+environment variables for production. Set up database migrations for production database.
+Configure CORS to allow frontend domain. Set up reverse proxy (nginx) if needed. Configure
+SSL/TLS certificates. Set up database backups and monitoring. Configure production SMTP
+server with proper authentication. Set up background job scheduler (PM2, systemd, etc.).
+Configure email delivery monitoring and alerting."
+
+================================================================================
+PRODUCTION CONSIDERATIONS
+================================================================================
+
+SECURITY
+--------
+1. Use HTTPS in production
+2. Implement rate limiting (express-rate-limit)
+3. Sanitize all user inputs
+4. Use parameterized queries to prevent SQL injection
+5. Implement CORS properly (only allow frontend domain)
+6. Store JWT secrets securely (use environment variables)
+7. Implement password strength requirements
+8. Use helmet.js for security headers
+9. Regularly update dependencies
+10. Implement request logging and monitoring
+
+PERFORMANCE
+-----------
+1. Use connection pooling for database
+2. Implement caching for frequently accessed data (Redis)
+3. Add database indexes for frequently queried columns
+4. Implement pagination for list endpoints
+5. Use compression middleware (gzip)
+6. Optimize database queries
+7. Implement lazy loading for relationships
+8. Use CDN for static assets
+
+SCALABILITY
+----------
+1. Design stateless API (JWT in header, not sessions)
+2. Use horizontal scaling (multiple server instances)
+3. Implement load balancing
+4. Use Redis for session/token storage if needed
+5. Implement database read replicas for read-heavy operations
+6. Use message queue for background jobs (if needed)
+
+MONITORING & LOGGING
+--------------------
+1. Implement request logging (Winston or similar)
+2. Set up error tracking (Sentry or similar)
+3. Monitor database performance
+4. Track API response times
+5. Set up alerts for errors and performance issues
+6. Implement health check endpoints
+
+DATABASE
+--------
+1. Regular backups (daily recommended)
+2. Implement database migrations properly
+3. Use transactions for multi-step operations
+4. Optimize slow queries
+5. Monitor database size and performance
+6. Set up connection pooling appropriately
+7. Use prepared statements
+
+================================================================================
+ENVIRONMENT VARIABLES TEMPLATE
+================================================================================
+
+# Backend .env file
+NODE_ENV=production
+PORT=5000
+
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=skoda_vehicle_booking
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+DB_MAX_CONNECTIONS=20
+
+# JWT
+JWT_SECRET=your_very_secure_jwt_secret_key_here_min_32_chars
+JWT_REFRESH_SECRET=your_very_secure_refresh_secret_key_here_min_32_chars
+JWT_EXPIRES_IN=1h
+JWT_REFRESH_EXPIRES_IN=7d
+
+# CORS
+CORS_ORIGIN=https://your-frontend-domain.com
+
+# Email (SMTP Configuration for all notifications)
+EMAIL_ENABLED=true
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SECURE=false  # true for 465, false for other ports
+EMAIL_USER=your_email@example.com
+EMAIL_PASSWORD=your_email_password_or_app_password
+EMAIL_FROM=noreply@skoda.com
+EMAIL_FROM_NAME=Skoda Vehicle Booking System
+EMAIL_REPLY_TO=support@skoda.com
+
+# Email Templates
+EMAIL_TEMPLATES_DIR=./src/templates/emails
+
+# Notification Email Settings
+NOTIFICATION_EMAIL_ENABLED=true  # Enable/disable email notifications
+EMAIL_NOTIFICATION_DELAY_SECONDS=0  # Delay before sending email (for batch processing)
+
+# Compliance Alerts Configuration
+INSURANCE_EXPIRY_ALERT_DAYS=30  # Alert admin 30 days before insurance expires
+PUC_EXPIRY_ALERT_DAYS=15  # Alert admin 15 days before PUC expires
+COMPLIANCE_CHECK_INTERVAL_HOURS=24  # Run compliance check every 24 hours
+
+# Redis (optional, for caching)
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+================================================================================
+DATABASE SEED DATA
+================================================================================
+
+Create seed scripts to populate initial data:
+
+1. Default Super Admin User
+   - Email: superadmin@skoda.com
+   - Password: (hash with bcrypt)
+   - Role: super_admin
+   - Location: ALL
+
+2. Default Admin Users (one per location)
+   - PTC: admin@skoda.com
+   - VGTAP: admin.vgtap@skoda.com
+   - NCR: admin.ncr@skoda.com
+   - BLR: admin.blr@skoda.com
+
+3. Sample Vehicles (at least 3-5 per location)
+   - Mix of brands (VW, SA, AU)
+   - Various statuses
+   - Different compliance statuses
+
+4. Sample Training Courses
+   - Can be stored in a separate table or as constants
+
+================================================================================
+TESTING CHECKLIST
+================================================================================
+
+AUTHENTICATION
+- [ ] Login with valid credentials
+- [ ] Login with invalid credentials
+- [ ] Token refresh
+- [ ] Password reset flow
+- [ ] Token expiration handling
+- [ ] Unauthorized access blocking
+
+AUTHORIZATION
+- [ ] Super admin can access all locations
+- [ ] Admin can only access own location
+- [ ] Trainer can book across locations
+- [ ] Security can only manage own location
+- [ ] Role-based endpoint restrictions
+
+VEHICLES
+- [ ] CRUD operations
+- [ ] Location filtering
+- [ ] Status management
+- [ ] Unique registration number validation
+- [ ] Insurance/PUC status updates
+
+BOOKINGS
+- [ ] Create booking with validation (future dates, minimum 1 hour duration)
+- [ ] Prevent overlapping bookings (strict enforcement)
+- [ ] Training course selection (predefined or custom)
+- [ ] Expected return date & time set by trainer (read-only for security)
+- [ ] Status transitions
+- [ ] Vehicle status updates (Available <-> In Use <-> Maintenance)
+- [ ] Location filtering
+- [ ] Availability checking
+- [ ] Notification triggers (created, approved, rejected, completed)
+
+SECURITY
+- [ ] Key issuance (expected return time read-only, set by trainer)
+- [ ] Vehicle return processing
+- [ ] Security log creation (ONLY Key Issued and Vehicle Returned)
+- [ ] Security logs do NOT include damage reports or parts requests
+- [ ] Location filtering
+- [ ] Time period filters for log export (All, Last Month, Last 3 Months, etc.)
+- [ ] Notification triggers (key issued, vehicle returned)
+
+MESSAGING
+- [ ] Send direct message
+- [ ] Send broadcast (admin/super_admin only)
+- [ ] Location filtering for admin broadcasts
+- [ ] Mark as read
+- [ ] Reply to message
+
+REPORTS & ANALYTICS
+- [ ] Generate reports
+- [ ] Export to CSV
+- [ ] Analytics calculations
+- [ ] Location filtering
+
+================================================================================
+FINAL NOTES
+================================================================================
+
+1. Always validate user location and role on every request
+2. Use database transactions for multi-step operations
+3. Implement proper error messages (don't expose sensitive info)
+4. Log all security-critical operations
+5. Keep frontend and backend in sync (API versioning if needed)
+6. Document all API endpoints thoroughly
+7. Implement request validation on both frontend and backend
+8. Use TypeScript for type safety
+9. Write tests for critical business logic
+10. Follow RESTful API conventions
+
+CRITICAL FRONTEND CHANGES REFLECTED:
+------------------------------------
+1. Direct messaging: ANY user can message ANY other user (no restrictions)
+2. Mileage field removed from vehicles and service records
+3. Booking 'purpose' → 'trainingCourse' with custom course support
+4. Expected return date/time: Set by trainer, read-only for security
+5. Security logs: ONLY Key Issued and Vehicle Returned (NOT damage/parts)
+6. Notification system: Required for all workflow-based triggers
+7. Dynamic user fetching: Required for messaging recipient lists
+8. Global search: Cross-entity search functionality
+9. Training courses: Database-driven course selection
+10. Real-time updates: Dynamic refresh mechanisms throughout
+
+EMAIL & SMTP REQUIREMENTS:
+--------------------------
+1. All notifications sent both in-app AND via email (SMTP)
+2. SMTP configuration required for production deployment
+3. Email templates for all notification types (HTML format)
+4. Scheduled compliance checks for insurance/PUC expiry
+5. Email delivery tracking (email_sent, email_sent_at fields)
+6. Support for multiple SMTP providers (Gmail, SendGrid, AWS SES, etc.)
+7. Email notifications for:
+   - User onboarding (welcome email)
+   - Password reset (link + confirmation)
+   - Booking lifecycle (all status changes)
+   - Key issuance and vehicle returns
+   - Damage reports and parts requests
+   - Maintenance alerts
+   - Insurance expiry (30 days before + expired)
+   - PUC expiry (15 days before + expired)
+
+DATA VALIDATION REQUIREMENTS:
+-----------------------------
+- Booking dates: startDate must be future, endDate after startDate, min 1 hour
+- Vehicle availability: Strict overlap checking before allowing bookings
+- Message recipients: Return all users for direct messaging (no filtering)
+- Security logs: Only log key operations, exclude admin responsibilities
+- Notifications: Create for all status changes and workflow triggers (in-app + email)
+- Location filtering: Apply to admin/security queries, NOT to direct messages
+- Email validation: Validate email addresses before sending notifications
+- Expiry checks: Daily background job must check insurance/PUC dates
+- Email delivery: Track all email sends and failures in notifications table
+
+EMAIL & SMTP REQUIREMENTS:
+---------------------------
+- All notifications must have dual delivery: in-app notification + email
+- SMTP configuration via environment variables
+- HTML email templates for all notification types
+- Email delivery status tracking (email_sent, email_sent_at, email_failed)
+- Retry mechanism for failed email sends
+- Background jobs for expiry checks (daily cron)
+- Email rate limiting to prevent SMTP server limits
+- Support for email queue system (optional, for production scale)
+
+================================================================================
+MASTER PROMPT - BUILD COMPLETE BACKEND SYSTEM
+================================================================================
+
+Use this comprehensive prompt to build the entire production-ready backend system
+in one go. This prompt includes all requirements, features, and specifications
+from all phases above.
+
+PROMPT:
+--------
+"Create a complete production-ready backend system for a Skoda Vehicle Booking
+Management System using Node.js, Express.js, TypeScript, and PostgreSQL.
+
+REQUIREMENTS:
+
+1. PROJECT STRUCTURE:
+   - Set up Node.js + Express.js + TypeScript project
+   - Create folders: src/{config,controllers,services,models,middleware,routes,utils,types}
+   - Include migrations/, seeds/, and tests/ folders
+   - Set up package.json with dependencies: express, pg, jsonwebtoken, bcrypt, 
+     dotenv, cors, express-validator, express-rate-limit, helmet, nodemailer,
+     node-cron (for scheduled jobs), handlebars or ejs (for email templates)
+   - Configure TypeScript, nodemon for development
+
+2. DATABASE SETUP:
+   - Create PostgreSQL schema with all tables (users, vehicles, bookings, key_issues,
+     security_logs, service_records, messages, message_reads, reports, damage_reports,
+     parts_requests, notifications, training_courses)
+   - Include all indexes, foreign keys, constraints, and check constraints
+   - IMPORTANT: Remove mileage field from vehicles and service_records tables
+   - Set up migration system
+   - Create seed data for training courses (Skoda, Volkswagen, Audi brands)
+
+3. AUTHENTICATION SYSTEM:
+   - Implement JWT-based authentication with access and refresh tokens
+   - Use bcrypt for password hashing (salt rounds: 10)
+   - Endpoints: POST /api/auth/login, POST /api/auth/logout,
+     POST /api/auth/forgot-password, POST /api/auth/reset-password,
+     POST /api/auth/refresh-token
+   - Token structure includes: userId, email, role, location
+   - Implement auth.middleware.ts to verify tokens
+
+4. MIDDLEWARE:
+   - auth.middleware.ts: Verify JWT tokens
+   - role.middleware.ts: Check role-based permissions
+   - location.middleware.ts: Apply location filtering for admin/security
+   - validation.middleware.ts: Validate request data using express-validator
+   - error.middleware.ts: Global error handler with consistent error responses
+
+5. USER MANAGEMENT:
+   - CRUD operations with location-based filtering
+   - Super admin sees all users, admin sees only their location
+   - Endpoints: GET/POST/PUT/DELETE /api/users, GET /api/users/:id,
+     GET /api/users/for-messaging (returns ALL users for direct messaging),
+     PATCH /api/users/:id/status
+   - Status: Only 'active' or 'inactive' (removed 'suspended')
+   - Email and employee_id uniqueness validation
+
+6. VEHICLE MANAGEMENT:
+   - CRUD operations with location-based filtering
+   - Vehicle status: 'Active', 'Inactive', 'Maintenance', 'Available', 'In Use'
+   - Status transitions: Available <-> In Use, Any -> Maintenance
+   - Endpoints: GET/POST/PUT/PATCH/DELETE /api/vehicles,
+     PATCH /api/vehicles/:id/status, GET /api/vehicles/:id/service-records
+   - NO mileage field in schema
+   - Denormalized allocated_trainer_name for performance
+
+7. BOOKING SYSTEM:
+   - Create bookings with validation:
+     * startDate must be in future (not past)
+     * endDate must be strictly after startDate
+     * Minimum booking duration: 1 hour
+     * Prevent overlapping bookings for same vehicle (strict enforcement)
+   - Use 'trainingCourse' field (not 'purpose') with 'trainingCourseCustom' for 'Other'
+   - Expected return date & time set by trainer (read-only for security)
+   - Status flow: pending -> approved -> active -> completed
+   - Endpoints: GET/POST/PUT/PATCH/DELETE /api/bookings,
+     GET /api/bookings/check-availability
+   - Automatically update vehicle status based on booking status
+   - Notifications: created -> admin, approved -> trainer & security,
+     rejected -> trainer, completed -> trainer & admin
+
+8. SECURITY ENDPOINTS:
+   - GET /api/security/bookings (approved bookings for key issue)
+   - POST /api/security/issue-key (expected return time read-only, set by trainer)
+   - POST /api/security/return-vehicle (condition: excellent/good/fair/damaged)
+   - GET /api/security/logs (ONLY 'Key Issued' and 'Vehicle Returned' types)
+   - GET /api/security/logs/export (with time period filters)
+   - Security logs do NOT include damage reports or parts requests (admin only)
+   - Location filtering for security officers
+   - Notifications: key issued -> trainer, vehicle returned -> trainer & admin
+
+9. MESSAGING SYSTEM:
+   - Broadcast messages: Super Admin (all locations), Admin (own location only)
+   - Direct messages: ANY user can send to ANY other user across all roles and locations
+   - NO role or location restrictions for direct messaging
+   - Endpoints: GET /api/messages, GET /api/messages/recipients (returns ALL users),
+     POST /api/messages, PATCH /api/messages/:id/read, GET /api/messages/unread-count
+   - Direct messages bypass location filtering entirely
+   - Support replies using parentMessageId
+   - Message read tracking using message_reads junction table
+
+10. SERVICE RECORDS:
+    - CRUD operations with location-based filtering
+    - NO mileage field in schema
+    - Endpoints: GET/POST/PUT/DELETE /api/service-records
+    - Calculate total cost per vehicle
+    - Notification triggers for maintenance requirements
+
+11. DAMAGE REPORTS & PARTS REQUESTS:
+    - Trainers can create for active bookings only
+    - Automatically routed to location admin
+    - Endpoints: POST/GET/PATCH /api/damage-reports, POST/GET/PATCH /api/parts-requests
+    - Status: damage (pending/acknowledged/resolved), parts (pending/approved/rejected/fulfilled)
+    - Do NOT log in security_logs (admin responsibility only)
+    - Notifications: Create for admin when trainer reports
+
+12. NOTIFICATIONS SYSTEM:
+    - Real-time notification creation for all workflow triggers
+    - Types: booking_created, booking_approved, booking_rejected, key_issued,
+      vehicle_returned, damage_reported, parts_requested, maintenance_required, message_received
+    - Endpoints: GET /api/notifications, GET /api/notifications/unread-count,
+      PATCH /api/notifications/:id/read, PATCH /api/notifications/read-all,
+      DELETE /api/notifications/:id
+    - Include action_url, category, priority fields
+    - Support read/unread tracking with read_at timestamp
+
+13. TRAINING COURSES:
+    - Endpoints: GET /api/training-courses (filter by brand: VW/SA/AU),
+      GET /api/training-courses/:id
+    - Return courses for booking form dropdown
+    - Include 'Other' option for custom courses
+
+14. GLOBAL SEARCH:
+    - Endpoint: GET /api/search?q=term&entity=all|vehicles|bookings|users|records
+    - Search across: vehicles (reg no, brand, model, name),
+      bookings (trainer name, vehicle, training course),
+      users (name, email, role, employee ID),
+      service records (vehicle, description, service type)
+    - Apply location filtering for admin/security users
+
+15. REPORTS & ANALYTICS:
+    - Generate CSV reports for vehicles, bookings, trainers, maintenance
+    - Analytics: fleet utilization, booking trends, trainer metrics, compliance status
+    - Endpoints: GET/POST /api/reports, GET /api/analytics, GET /api/analytics/export
+    - Support date range and location filtering
+
+16. ERROR HANDLING & VALIDATION:
+    - Comprehensive error handling with consistent error responses
+    - Validate all input data using express-validator
+    - Handle database errors, validation errors, authentication errors
+    - Custom error classes and error middleware
+
+17. PRODUCTION READINESS:
+    - Environment variables configuration (.env.example)
+    - CORS settings (only allow frontend domain)
+    - Rate limiting (express-rate-limit)
+    - Security headers (helmet.js)
+    - Request logging
+    - Database connection pooling optimized for production
+    - Health check endpoint (GET /api/health)
+    - SMTP email service configured and tested
+    - Email templates for all notification types
+    - Scheduled jobs for compliance checks (cron/scheduler)
+
+18. API DOCUMENTATION:
+    - Document all endpoints with request/response examples
+    - Include authentication requirements
+    - Document location filtering rules
+    - Include validation rules and error codes
+
+19. TESTING:
+    - Write unit tests for services
+    - Write integration tests for API endpoints
+    - Test authentication and authorization
+    - Test location filtering
+    - Test all business logic scenarios
+
+20. FRONTEND INTEGRATION READY:
+    - All endpoints match frontend requirements
+    - CORS configured for frontend domain
+    - JWT tokens compatible with frontend
+    - Response formats match frontend expectations
+    - Error responses consistent and frontend-friendly
+
+IMPORTANT SPECIFICATIONS:
+
+- Location Codes: PTC (Pune), VGTAP, NCR, BLR (Bangalore), ALL (super admin)
+- Vehicle Brands: VW (Volkswagen), SA (Skoda), AU (Audi)
+- Roles: super_admin, admin, trainer, security
+- Booking Status: pending, approved, rejected, active, completed, cancelled
+- Vehicle Status: Active, Inactive, Maintenance, Available, In Use
+- Security Log Types: ONLY 'Key Issued' and 'Vehicle Returned'
+- User Status: active, inactive (NO 'suspended')
+- Direct Messaging: ANY user to ANY user (no restrictions)
+- Training Course: Use 'trainingCourse' field, support 'trainingCourseCustom' for 'Other'
+
+VALIDATION RULES:
+
+- Booking dates: startDate must be future, endDate > startDate, minimum 1 hour duration
+- Vehicle availability: Strict overlap checking before allowing bookings
+- Message recipients: Return all users for direct messaging (no filtering)
+- Security logs: Only log key operations, exclude admin responsibilities
+- Notifications: Create for all status changes and workflow triggers
+- Location filtering: Apply to admin/security queries, NOT to direct messages
+
+EMAIL NOTIFICATION REQUIREMENTS:
+
+- SMTP service implementation with support for multiple providers
+- Email templates (HTML) for all notification types
+- Email service integrated with notification system
+- Track email delivery status in notifications table
+- Scheduled compliance checks for insurance/PUC expiry
+- Email notifications sent for:
+  * User onboarding (welcome email)
+  * Password reset (reset link + confirmation)
+  * Booking lifecycle (created, approved, rejected, cancelled)
+  * Key issuance and vehicle returns
+  * Damage reports and parts requests
+  * Maintenance alerts
+  * Insurance expiry alerts (30 days before + expired)
+  * PUC expiry alerts (15 days before + expired)
+
+DELIVERABLES:
+
+1. Complete project structure with all folders and files
+2. Database schema with migrations (including email_sent fields)
+3. All models, services, controllers, routes, and middleware
+4. Email service implementation (emailService.ts)
+5. Email templates directory with HTML templates
+6. Compliance check scheduled job (complianceCheck.job.ts)
+7. Notification service with email integration
+8. Complete API documentation
+9. Environment configuration files (.env.example with SMTP settings)
+10. Seed data scripts
+11. Test files (unit and integration)
+12. README with setup instructions (including SMTP configuration)
+13. Error handling and validation throughout
+14. Production-ready configuration
+
+The backend should be fully functional, production-ready, and seamlessly integrate
+with the existing React frontend application. All notifications must be sent both
+in-app and via email using SMTP."
+
+================================================================================
+END OF DOCUMENT
+================================================================================
+

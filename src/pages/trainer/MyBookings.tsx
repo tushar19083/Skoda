@@ -8,17 +8,23 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Calendar, Car, Search, Filter, Clock, MapPin, AlertTriangle } from 'lucide-react';
+import { Calendar, Car, Search, Filter, Clock, MapPin, AlertTriangle, Wrench } from 'lucide-react';
 import { useBookings } from '@/hooks/useBookings';
 import { useVehicles } from '@/hooks/useVehicles';
 import { useAuth } from '@/contexts/AuthContext';
+import { useMessaging } from '@/contexts/MessagingContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { useToast } from '@/hooks/use-toast';
+import { mockUsers } from '@/contexts/MessagingContext';
 import { format } from 'date-fns';
+import { logDamageReported, logPartsRequested } from '@/utils/securityLogger';
 
 export function MyBookings() {
   const { user } = useAuth();
   const { bookings, loading: bookingsLoading, updateBookingStatus, deleteBooking } = useBookings();
   const { vehicles, isLoading: vehiclesLoading } = useVehicles();
+  const { sendMessage } = useMessaging();
+  const { notifyDamageReported, notifyPartsRequested } = useNotifications();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -26,7 +32,11 @@ export function MyBookings() {
     bookingId: '',
     condition: 'Good',
     damageDescription: '',
-    partsRequest: '',
+    open: false
+  });
+  const [partsRequest, setPartsRequest] = useState({
+    bookingId: '',
+    partsDescription: '',
     open: false
   });
 
@@ -71,18 +81,104 @@ export function MyBookings() {
     }
   };
 
+  // Get admin ID for a specific location
+  const getAdminIdForLocation = (location: string): string | null => {
+    // Map location names/codes to admin IDs
+    const locationMap: Record<string, string> = {
+      // Location codes (PTC, VGTAP, NCR, BLR)
+      'PTC': '1', // John Administrator
+      'VGTAP': '2', // Priya Admin
+      'NCR': '3', // Rajesh Kumar
+      'BLR': '4', // Ananya Sharma
+      // Location names (Pune, VGTAP, NCR, Bangalore)
+      'Pune': '1',
+      'Bangalore': '4',
+      'pune': '1',
+      'bangalore': '4',
+    };
+    
+    // Try to map location codes/names
+    const adminId = locationMap[location] || locationMap[location.toUpperCase()];
+    
+    if (adminId) {
+      return adminId;
+    }
+    
+    // Fallback: find admin by location in mockUsers
+    const admin = mockUsers.find(u => {
+      if (u.role === 'admin') {
+        // Match by exact location or by code/name mapping
+        if (u.location === location) return true;
+        // Handle Pune -> PTC mapping
+        if (location === 'Pune' && u.location === 'PTC') return true;
+        if (location === 'PTC' && u.location === 'PTC') return true;
+        // Handle Bangalore -> BLR mapping
+        if (location === 'Bangalore' && u.location === 'BLR') return true;
+        if (location === 'BLR' && u.location === 'BLR') return true;
+      }
+      return false;
+    });
+    
+    return admin?.id || null;
+  };
+
   const handleDamageReport = async () => {
     try {
-       // Normally save damage report + requested parts to DB
+      const booking = bookings.find(b => b.id === damageReport.bookingId);
+      if (!booking) {
+        toast({
+          title: "Error",
+          description: "Booking not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const vehicle = vehicles.find(v => v.id === booking.vehicleId);
+      const adminId = getAdminIdForLocation(booking.requestedLocation);
+      
+      if (!adminId) {
+        toast({
+          title: "Error",
+          description: "Location admin not found. Please contact support.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create damage report message
+      const reportContent = `🚨 Vehicle Damage Report - Booking #${booking.id}
+
+Vehicle: ${vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.regNo})` : 'Unknown'}
+Location: ${booking.requestedLocation}
+Condition: ${damageReport.condition}
+${damageReport.damageDescription ? `\nDescription:\n${damageReport.damageDescription}` : ''}
+
+Reported by: ${user?.name || 'Trainer'}
+Date: ${format(new Date(), 'PPpp')}`;
+
+      // Send message to location admin
+      sendMessage(reportContent, [adminId]);
+
+      // Log the damage report
+      if (vehicle && user) {
+        logDamageReported(
+          booking,
+          vehicle,
+          { id: user.id, name: user.name },
+          damageReport.damageDescription || `Condition: ${damageReport.condition}`
+        );
+      }
+
       toast({
         title: "Damage Report Submitted",
-        description: "Your damage report has been submitted to the admin team.",
+        description: `Your damage report has been sent to the ${booking.requestedLocation} location admin.`,
       });
+
       setDamageReport({
         bookingId: '',
         condition: 'Good',
         damageDescription: '',
-        partsRequest: '',
         open: false
       });
     } catch (error) {
@@ -94,12 +190,95 @@ export function MyBookings() {
     }
   };
 
+  const handlePartsRequest = async () => {
+    try {
+      const booking = bookings.find(b => b.id === partsRequest.bookingId);
+      if (!booking) {
+        toast({
+          title: "Error",
+          description: "Booking not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const vehicle = vehicles.find(v => v.id === booking.vehicleId);
+      const adminId = getAdminIdForLocation(booking.requestedLocation);
+      
+      if (!adminId) {
+        toast({
+          title: "Error",
+          description: "Location admin not found. Please contact support.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create parts request message
+      const requestContent = `🔧 Parts Request - Booking #${booking.id}
+
+Vehicle: ${vehicle ? `${vehicle.brand} ${vehicle.model} (${vehicle.regNo})` : 'Unknown'}
+Location: ${booking.requestedLocation}
+\nRequested Parts:\n${partsRequest.partsDescription}
+
+Requested by: ${user?.name || 'Trainer'}
+Date: ${format(new Date(), 'PPpp')}`;
+
+      // Send message to location admin
+      sendMessage(requestContent, [adminId]);
+
+      // Log the parts request
+      if (vehicle && user) {
+        logPartsRequested(
+          booking,
+          vehicle,
+          { id: user.id, name: user.name },
+          partsRequest.partsDescription || 'Parts request submitted'
+        );
+        
+        // Notify admin
+        const vehicleName = `${vehicle.brand} ${vehicle.model} (${vehicle.regNo || 'N/A'})`;
+        notifyPartsRequested(
+          booking.id,
+          vehicle.id,
+          user.id,
+          vehicleName,
+          booking.requestedLocation
+        );
+      }
+
+      toast({
+        title: "Parts Request Submitted",
+        description: `Your parts request has been sent to the ${booking.requestedLocation} location admin.`,
+      });
+
+      setPartsRequest({
+        bookingId: '',
+        partsDescription: '',
+        open: false
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to submit parts request. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const openDamageDialog = (bookingId: string) => {
     setDamageReport({
       bookingId,
       condition: 'Good',
       damageDescription: '',
-      partsRequest: '',
+      open: true
+    });
+  };
+
+  const openPartsDialog = (bookingId: string) => {
+    setPartsRequest({
+      bookingId,
+      partsDescription: '',
       open: true
     });
   };
@@ -292,7 +471,12 @@ export function MyBookings() {
                             </Badge>
                           )}
                           {booking.status === 'active' && (
-                              <Dialog open={damageReport.open} onOpenChange={(open) => setDamageReport(prev => ({ ...prev, open }))}>
+                            <div className="flex gap-2">
+                              <Dialog open={damageReport.open && damageReport.bookingId === booking.id} onOpenChange={(open) => {
+                                if (!open) {
+                                  setDamageReport(prev => ({ ...prev, open: false, bookingId: '' }));
+                                }
+                              }}>
                                 <DialogTrigger asChild>
                                   <Button
                                     size="sm"
@@ -300,14 +484,14 @@ export function MyBookings() {
                                     onClick={() => openDamageDialog(booking.id)}
                                   >
                                     <AlertTriangle className="h-4 w-4 mr-2" />
-                                    Report Damage / Request Parts
+                                    Report Damage
                                   </Button>
                                 </DialogTrigger>
                                 <DialogContent className="sm:max-w-md">
                                   <DialogHeader>
-                                    <DialogTitle>Report Vehicle Damage / Request Parts</DialogTitle>
+                                    <DialogTitle>Report Vehicle Damage</DialogTitle>
                                     <DialogDescription>
-                                      Report damages or request replacement parts for booking #{booking.id}
+                                      Report vehicle damage or issues for booking #{booking.id}. This will notify the {booking.requestedLocation} location admin.
                                     </DialogDescription>
                                   </DialogHeader>
                                   <div className="space-y-4">
@@ -324,6 +508,7 @@ export function MyBookings() {
                                           <SelectItem value="Good">Good - No issues</SelectItem>
                                           <SelectItem value="Minor Issues">Minor Issues - Small problems</SelectItem>
                                           <SelectItem value="Damage">Damage - Requires attention</SelectItem>
+                                          <SelectItem value="Critical">Critical - Immediate attention needed</SelectItem>
                                         </SelectContent>
                                       </Select>
                                     </div>
@@ -336,39 +521,83 @@ export function MyBookings() {
                                           value={damageReport.damageDescription}
                                           onChange={(e) => setDamageReport(prev => ({ ...prev, damageDescription: e.target.value }))}
                                           className="min-h-[120px]"
+                                          required
                                         />
                                       </div>
                                     )}
-                                    <div>
-                                      <Label htmlFor="partsRequest">Request Parts</Label>
-                                      <Textarea
-                                        id="partsRequest"
-                                        placeholder="List the parts you want to request (e.g., tires, mirrors, etc.)"
-                                        value={damageReport.partsRequest}
-                                        onChange={e =>
-                                          setDamageReport(prev => ({
-                                            ...prev,
-                                            partsRequest: e.target.value,
-                                          }))
-                                        }
-                                        className="min-h-[80px]"
-                                      />
-                                    </div>
                                     <div className="flex justify-end space-x-2">
                                       <Button 
                                         variant="outline" 
-                                        onClick={() => setDamageReport(prev => ({ ...prev, open: false }))}
+                                        onClick={() => setDamageReport(prev => ({ ...prev, open: false, bookingId: '' }))}
                                       >
                                         Cancel
                                       </Button>
-                                      <Button onClick={handleDamageReport}>
+                                      <Button 
+                                        onClick={handleDamageReport}
+                                        disabled={damageReport.condition !== 'Good' && !damageReport.damageDescription.trim()}
+                                      >
                                         Submit Report
                                       </Button>
                                     </div>
                                   </div>
                                 </DialogContent>
                               </Dialog>
-                            
+
+                              <Dialog open={partsRequest.open && partsRequest.bookingId === booking.id} onOpenChange={(open) => {
+                                if (!open) {
+                                  setPartsRequest(prev => ({ ...prev, open: false, bookingId: '' }));
+                                }
+                              }}>
+                                <DialogTrigger asChild>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => openPartsDialog(booking.id)}
+                                  >
+                                    <Wrench className="h-4 w-4 mr-2" />
+                                    Request Parts
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-md">
+                                  <DialogHeader>
+                                    <DialogTitle>Request Parts</DialogTitle>
+                                    <DialogDescription>
+                                      Request replacement parts for booking #{booking.id}. This will notify the {booking.requestedLocation} location admin.
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <div>
+                                      <Label htmlFor="partsDescription">Parts Request</Label>
+                                      <Textarea
+                                        id="partsDescription"
+                                        placeholder="List the parts you need (e.g., Front left tire, Side mirror, Brake pads, etc.)"
+                                        value={partsRequest.partsDescription}
+                                        onChange={(e) => setPartsRequest(prev => ({ ...prev, partsDescription: e.target.value }))}
+                                        className="min-h-[120px]"
+                                        required
+                                      />
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        Be as specific as possible. Include part names, quantities, and any relevant details.
+                                      </p>
+                                    </div>
+                                    <div className="flex justify-end space-x-2">
+                                      <Button 
+                                        variant="outline" 
+                                        onClick={() => setPartsRequest(prev => ({ ...prev, open: false, bookingId: '' }))}
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button 
+                                        onClick={handlePartsRequest}
+                                        disabled={!partsRequest.partsDescription.trim()}
+                                      >
+                                        Submit Request
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </div>
                           )}
                         </div>
                       </TableCell>

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Key, Search, Filter, Clock, User, Car, Calendar, AlertTriangle, CheckCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Key, Search, Filter, Clock, User, Car, Calendar, AlertTriangle, CheckCircle, MapPin } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,109 +11,129 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { format } from 'date-fns';
+import { format, isAfter, isBefore, startOfDay } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useBookings } from '@/hooks/useBookings';
+import { useVehicles } from '@/hooks/useVehicles';
+import { useLocationFilter } from '@/hooks/useLocationFilter';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { getLocationName } from '@/constants/locations';
+import { logKeyIssued } from '@/utils/securityLogger';
 
 const issueKeySchema = z.object({
   bookingId: z.string().min(1, 'Please select a booking'),
   notes: z.string().optional(),
-  expectedReturnTime: z.string().min(1, 'Expected return time is required'),
 });
 
 type IssueKeyForm = z.infer<typeof issueKeySchema>;
 
-// Mock data for demonstration
-const mockVehicles = [
-  { id: '1', brand: 'Škoda', model: 'Octavia', licensePlate: 'PG-123-AB', status: 'available' },
-  { id: '2', brand: 'Škoda', model: 'Fabia', licensePlate: 'PG-456-CD', status: 'available' },
-  { id: '3', brand: 'Škoda', model: 'Superb', licensePlate: 'PG-789-EF', status: 'available' },
-  { id: '4', brand: 'Škoda', model: 'Kodiaq', licensePlate: 'PG-321-GH', status: 'available' },
-  { id: '5', brand: 'Škoda', model: 'Kamiq', licensePlate: 'PG-654-IJ', status: 'available' },
-];
+// Key issues are stored in localStorage as a simple array
+// In a real app, this would be a separate API/table
+const getKeyIssues = (): Array<{ bookingId: string; status: string; issuedAt: string }> => {
+  try {
+    const stored = localStorage.getItem('app_key_issues');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
 
-const mockBookings = [
-  { 
-    id: '1', 
-    vehicleId: '1', 
-    trainerName: 'John Smith', 
-    purpose: 'Highway driving lesson', 
-    status: 'approved',
-    startDate: '2024-01-15T09:00:00',
-    endDate: '2024-01-15T17:00:00',
-    notes: 'Student preparing for highway test'
-  },
-  { 
-    id: '2', 
-    vehicleId: '2', 
-    trainerName: 'Sarah Johnson', 
-    purpose: 'Parallel parking practice', 
-    status: 'approved',
-    startDate: '2024-01-15T10:00:00',
-    endDate: '2024-01-15T16:00:00',
-    notes: ''
-  },
-  { 
-    id: '3', 
-    vehicleId: '3', 
-    trainerName: 'Mike Davis', 
-    purpose: 'City driving experience', 
-    status: 'approved',
-    startDate: '2024-01-16T08:00:00',
-    endDate: '2024-01-16T18:00:00',
-    notes: 'Nervous student, needs patient approach'
-  },
-  { 
-    id: '4', 
-    vehicleId: '4', 
-    trainerName: 'Emma Wilson', 
-    purpose: 'Night driving lesson', 
-    status: 'approved',
-    startDate: '2024-01-17T18:00:00',
-    endDate: '2024-01-17T22:00:00',
-    notes: 'Special evening session'
-  },
-  { 
-    id: '5', 
-    vehicleId: '5', 
-    trainerName: 'Alex Brown', 
-    purpose: 'Final exam preparation', 
-    status: 'approved',
-    startDate: '2024-01-18T09:00:00',
-    endDate: '2024-01-18T15:00:00',
-    notes: 'Student has exam next week'
-  },
-];
-
-const mockKeyIssues = [
-  { id: '1', bookingId: '6', status: 'issued', issuedAt: '2024-01-14T08:00:00' },
-  { id: '2', bookingId: '7', status: 'overdue', issuedAt: '2024-01-13T09:00:00' },
-  { id: '3', bookingId: '8', status: 'issued', issuedAt: '2024-01-14T14:00:00' },
-];
+const saveKeyIssues = (keyIssues: Array<{ bookingId: string; status: string; issuedAt: string }>) => {
+  try {
+    localStorage.setItem('app_key_issues', JSON.stringify(keyIssues));
+  } catch (err) {
+    console.error('Error saving key issues:', err);
+  }
+};
 
 export function IssueKeys() {
+  const { user } = useAuth();
+  const { bookings, loading: bookingsLoading, fetchBookings } = useBookings();
+  const { vehicles, isLoading: vehiclesLoading } = useVehicles();
+  const { filterByLocation } = useLocationFilter();
+  const { notifyKeyIssued } = useNotifications();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isIssueDialogOpen, setIsIssueDialogOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
-  const [keyIssues, setKeyIssues] = useState(mockKeyIssues);
+  const [keyIssues, setKeyIssues] = useState(getKeyIssues());
   const [loading, setLoading] = useState(false);
   
   const { toast } = useToast();
+
+  // Load key issues dynamically and listen for updates
+  useEffect(() => {
+    const loadKeyIssues = () => {
+      setKeyIssues(getKeyIssues());
+    };
+    
+    // Load on mount
+    loadKeyIssues();
+    
+    // Listen for storage changes (cross-tab updates)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'app_key_issues' || e.key === 'app_bookings') {
+        loadKeyIssues();
+        if (e.key === 'app_bookings' && fetchBookings) {
+          fetchBookings();
+        }
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Listen for custom booking update events
+    const handleBookingUpdate = () => {
+      loadKeyIssues();
+      if (fetchBookings) {
+        fetchBookings();
+      }
+    };
+    
+    window.addEventListener('bookings-updated', handleBookingUpdate);
+    
+    // Periodic refresh (every 2 seconds)
+    const interval = setInterval(() => {
+      loadKeyIssues();
+    }, 2000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('bookings-updated', handleBookingUpdate);
+      clearInterval(interval);
+    };
+  }, [fetchBookings]);
+  
+  // Filter bookings by location for security
+  const locationFilteredBookings = filterByLocation(bookings.map(b => ({
+    ...b,
+    location: b.requestedLocation
+  })));
+  
+  const availableBookingsForSecurity = locationFilteredBookings;
 
   const form = useForm<IssueKeyForm>({
     resolver: zodResolver(issueKeySchema),
     defaultValues: {
       bookingId: '',
       notes: '',
-      expectedReturnTime: '',
     },
   });
 
   // Filter approved bookings that don't have keys issued yet
-  const availableBookings = mockBookings.filter(booking => {
+  const availableBookings = availableBookingsForSecurity.filter((booking: any) => {
     const hasKeyIssued = keyIssues.some(key => key.bookingId === booking.id);
     return booking.status === 'approved' && !hasKeyIssued;
-  });
+  }).map(booking => ({
+    ...booking,
+    vehicleId: booking.vehicleId,
+    trainerName: booking.trainerName,
+    purpose: booking.purpose,
+    startDate: booking.startDate,
+    endDate: booking.endDate,
+    notes: booking.notes
+  }));
 
   // Filter bookings based on search and status
   const filteredBookings = availableBookings.filter(booking => {
@@ -125,15 +145,13 @@ export function IssueKeys() {
   });
 
   const getVehicleDetails = (vehicleId: string) => {
-    return mockVehicles.find(v => v.id === vehicleId);
+    return vehicles.find(v => v.id === vehicleId);
   };
 
 
   const handleIssueKey = (booking: any) => {
     setSelectedBooking(booking);
     form.setValue('bookingId', booking.id);
-    // Set default expected return time to the booking end date
-    form.setValue('expectedReturnTime', booking.endDate);
     setIsIssueDialogOpen(true);
   };
 
@@ -148,32 +166,63 @@ export function IssueKeys() {
       
       // Create new key issue
       const newKeyIssue = {
-        id: String(keyIssues.length + 1),
         bookingId: data.bookingId,
-        vehicleId: selectedBooking.vehicleId,
-        issuedBy: 'current-user',
+        status: 'issued',
         issuedAt: new Date().toISOString(),
-        expectedReturn: data.expectedReturnTime,
-        status: 'issued' as const,
-        notes: data.notes || '',
-        returned: false,
-        returnedAt: null,
-        returnCondition: null,
-        damageNotes: null
       };
       
-      // Update state
-      setKeyIssues([...keyIssues, newKeyIssue]);
+      // Update state and localStorage
+      const updatedKeyIssues = [...keyIssues, newKeyIssue];
+      setKeyIssues(updatedKeyIssues);
+      saveKeyIssues(updatedKeyIssues);
+      
+      // Update booking status to active
+      // In a real app, this would be an API call
+      // For now, we'll update the booking in localStorage
+      try {
+        const stored = localStorage.getItem('app_bookings');
+        if (stored) {
+          const parsedBookings = JSON.parse(stored);
+          const updatedBookings = parsedBookings.map((b: any) => 
+            b.id === data.bookingId 
+              ? { ...b, status: 'active', updatedAt: new Date().toISOString() }
+              : b
+          );
+          localStorage.setItem('app_bookings', JSON.stringify(updatedBookings));
+        }
+      } catch (err) {
+        console.error('Error updating booking status:', err);
+      }
+      
+      // Log the key issue action
+      const vehicle = getVehicleDetails(selectedBooking.vehicleId);
+      if (vehicle && user) {
+        logKeyIssued(
+          { id: user.id, name: user.name, email: user.email },
+          selectedBooking,
+          vehicle,
+          { id: selectedBooking.trainerId, name: selectedBooking.trainerName },
+          data.notes
+        );
+        
+        // Notify trainer
+        const vehicleName = `${vehicle.brand} ${vehicle.model} (${vehicle.regNo || 'N/A'})`;
+        notifyKeyIssued(data.bookingId, selectedBooking.trainerId, vehicleName, user.name);
+      }
       
       // Show success toast
       toast({
         title: "Key Issued Successfully",
-        description: `Key for ${getVehicleDetails(selectedBooking.vehicleId)?.brand} ${getVehicleDetails(selectedBooking.vehicleId)?.model} has been issued to ${selectedBooking.trainerName}`,
+        description: `Key for ${vehicle ? `${vehicle.brand} ${vehicle.model}` : 'vehicle'} has been issued to ${selectedBooking.trainerName}`,
       });
       
       setIsIssueDialogOpen(false);
       form.reset();
       setSelectedBooking(null);
+      
+      // Trigger data refresh by dispatching custom events
+      window.dispatchEvent(new CustomEvent('bookings-updated'));
+      window.dispatchEvent(new CustomEvent('vehicles-updated'));
     } catch (error) {
       console.error('Error issuing key:', error);
       toast({
@@ -192,7 +241,7 @@ export function IssueKeys() {
     overdueKeys: keyIssues.filter(k => k.status === 'overdue').length,
   };
 
-  if (loading) {
+  if (loading || bookingsLoading || vehiclesLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -205,9 +254,17 @@ export function IssueKeys() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Issue Keys</h1>
+          <div className="flex items-center gap-2 mb-2">
+            <h1 className="text-3xl font-bold">Issue Keys</h1>
+            {user?.location && (
+              <Badge variant="outline" className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {getLocationName(user.location)}
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground">
-            Manage vehicle key distribution to approved trainers
+            Manage vehicle key distribution to approved trainers {user?.location && `at ${getLocationName(user.location)}`}
           </p>
         </div>
         <Button variant="outline" onClick={() => window.history.back()}>
@@ -317,7 +374,7 @@ export function IssueKeys() {
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold">
-                            {vehicle ? `${vehicle.brand} ${vehicle.model} - ${vehicle.licensePlate}` : 'Unknown Vehicle'}
+                            {vehicle ? `${vehicle.brand} ${vehicle.model} - ${vehicle.regNo}` : 'Unknown Vehicle'}
                           </h3>
                         </div>
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
@@ -373,26 +430,11 @@ export function IssueKeys() {
                   <p><strong>Vehicle:</strong> {selectedBooking && getVehicleDetails(selectedBooking.vehicleId) ? 
                     `${getVehicleDetails(selectedBooking.vehicleId)?.brand} ${getVehicleDetails(selectedBooking.vehicleId)?.model}` : 'Unknown'}</p>
                   <p><strong>Purpose:</strong> {selectedBooking?.purpose}</p>
-                  <p><strong>Period:</strong> {selectedBooking && format(new Date(selectedBooking.startDate), 'MMM dd, yyyy')} - {selectedBooking && format(new Date(selectedBooking.endDate), 'MMM dd, yyyy')}</p>
+                  <p><strong>Start Date & Time:</strong> {selectedBooking && format(new Date(selectedBooking.startDate), 'MMM dd, yyyy HH:mm')}</p>
+                  <p><strong>Expected Return Date & Time:</strong> {selectedBooking && format(new Date(selectedBooking.endDate), 'MMM dd, yyyy HH:mm')}</p>
+                  <p className="text-xs text-muted-foreground mt-2">* Expected return date is set by trainer during booking</p>
                 </div>
               </div>
-
-              <FormField
-                control={form.control}
-                name="expectedReturnTime"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Expected Return Date & Time</FormLabel>
-                    <FormControl>
-                      <Input 
-                        type="datetime-local" 
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <FormField
                 control={form.control}

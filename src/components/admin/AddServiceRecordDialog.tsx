@@ -14,9 +14,18 @@ import { cn } from '@/lib/utils';
 
 interface AddServiceRecordDialogProps {
   children: React.ReactNode;
+  onAdd?: (serviceData: {
+    vehicleRegNo: string;
+    costIncurred: number;
+    serviceType: string;
+    description: string;
+    serviceDate: Date;
+  }) => void;
+  vehicles?: Array<{ vehicleRegNo: string; name: string; brand: string; model: string }>;
+  adminLocation?: string;
 }
 
-export default function AddServiceRecordDialog({ children }: AddServiceRecordDialogProps) {
+export default function AddServiceRecordDialog({ children, onAdd, vehicles = [], adminLocation }: AddServiceRecordDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -28,23 +37,48 @@ export default function AddServiceRecordDialog({ children }: AddServiceRecordDia
     costIncurred: '',
     description: '',
     partsReplaced: '',
-    nextServiceDate: new Date(),
+    nextServiceDate: undefined as Date | undefined,
     serviceProvider: '',
-    mileage: '',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!formData.vehicleRegNo || !formData.serviceType || !formData.costIncurred || !formData.description) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if vehicle exists
+    const vehicleExists = vehicles.some(v => v.vehicleRegNo === formData.vehicleRegNo);
+    if (!vehicleExists) {
+      toast({
+        title: "Vehicle Not Found",
+        description: `Vehicle with registration ${formData.vehicleRegNo} not found. Please add the vehicle first.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      toast({
-        title: "Service Record Added",
-        description: `Service record for ${formData.vehicleRegNo} has been added successfully.`,
-      });
-      setOpen(false);
+    try {
+      const cost = parseFloat(formData.costIncurred) || 0;
+      
+      if (onAdd) {
+        onAdd({
+          vehicleRegNo: formData.vehicleRegNo,
+          costIncurred: cost,
+          serviceType: formData.serviceType,
+          description: formData.description + (formData.partsReplaced ? `\nParts Replaced: ${formData.partsReplaced}` : ''),
+          serviceDate: formData.serviceDate,
+        });
+      }
+
       // Reset form
       setFormData({
         vehicleRegNo: '',
@@ -53,12 +87,29 @@ export default function AddServiceRecordDialog({ children }: AddServiceRecordDia
         costIncurred: '',
         description: '',
         partsReplaced: '',
-        nextServiceDate: new Date(),
+        nextServiceDate: undefined,
         serviceProvider: '',
-        mileage: '',
       });
-    }, 1000);
+      
+      setOpen(false);
+      
+      toast({
+        title: "Service Record Added",
+        description: `Service record for ${formData.vehicleRegNo} has been added successfully.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add service record. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
+
+  // Get unique vehicle registration numbers for autocomplete
+  const vehicleRegNos = [...new Set(vehicles.map(v => v.vehicleRegNo))].filter(Boolean);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -75,14 +126,34 @@ export default function AddServiceRecordDialog({ children }: AddServiceRecordDia
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="vehicleRegNo">Vehicle Registration No *</Label>
-              <Input
-                id="vehicleRegNo"
-                value={formData.vehicleRegNo}
-                onChange={(e) => setFormData({ ...formData, vehicleRegNo: e.target.value })}
-                placeholder="e.g., MH14DX2031"
-                required
-              />
+              <div className="space-y-2">
+                <Label htmlFor="vehicleRegNo">Vehicle Registration No *</Label>
+                <Select
+                  value={formData.vehicleRegNo}
+                  onValueChange={(value) => setFormData({ ...formData, vehicleRegNo: value })}
+                  required
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select vehicle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vehicleRegNos.map(regNo => {
+                      const vehicle = vehicles.find(v => v.vehicleRegNo === regNo);
+                      return (
+                        <SelectItem key={regNo} value={regNo}>
+                          {regNo} - {vehicle?.brand} {vehicle?.model}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+                {vehicleRegNos.length === 0 && (
+                  <p className="text-xs text-muted-foreground">No vehicles found for your location. Please add vehicles first.</p>
+                )}
+                {adminLocation && (
+                  <p className="text-xs text-muted-foreground">Only vehicles from {adminLocation} location are shown.</p>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="serviceType">Service Type *</Label>
@@ -101,6 +172,7 @@ export default function AddServiceRecordDialog({ children }: AddServiceRecordDia
                   <SelectItem value="parts-replacement">Parts Replacement</SelectItem>
                   <SelectItem value="diagnostics">Diagnostics</SelectItem>
                   <SelectItem value="breakdown">Breakdown Service</SelectItem>
+                  <SelectItem value="battery">Battery Replacement</SelectItem>
                   <SelectItem value="insurance">Insurance Renewal</SelectItem>
                   <SelectItem value="puc">PUC Renewal</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
@@ -136,30 +208,6 @@ export default function AddServiceRecordDialog({ children }: AddServiceRecordDia
               </Popover>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="mileage">Mileage (km)</Label>
-              <Input
-                id="mileage"
-                type="number"
-                value={formData.mileage}
-                onChange={(e) => setFormData({ ...formData, mileage: e.target.value })}
-                placeholder="Current mileage"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="costIncurred">Cost Incurred (₹) *</Label>
-              <Input
-                id="costIncurred"
-                type="number"
-                value={formData.costIncurred}
-                onChange={(e) => setFormData({ ...formData, costIncurred: e.target.value })}
-                placeholder="0.00"
-                required
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="serviceProvider">Service Provider</Label>
               <Input
                 id="serviceProvider"
@@ -168,6 +216,19 @@ export default function AddServiceRecordDialog({ children }: AddServiceRecordDia
                 placeholder="Workshop/Provider name"
               />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="costIncurred">Cost Incurred (₹) *</Label>
+            <Input
+              id="costIncurred"
+              type="number"
+              step="0.01"
+              value={formData.costIncurred}
+              onChange={(e) => setFormData({ ...formData, costIncurred: e.target.value })}
+              placeholder="0.00"
+              required
+            />
           </div>
 
           <div className="space-y-2">
@@ -211,7 +272,7 @@ export default function AddServiceRecordDialog({ children }: AddServiceRecordDia
                 <Calendar
                   mode="single"
                   selected={formData.nextServiceDate}
-                  onSelect={(date) => date && setFormData({ ...formData, nextServiceDate: date })}
+                  onSelect={(date) => setFormData({ ...formData, nextServiceDate: date })}
                   initialFocus
                 />
               </PopoverContent>
@@ -222,7 +283,7 @@ export default function AddServiceRecordDialog({ children }: AddServiceRecordDia
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading} className="bg-gradient-primary hover:bg-primary-hover">
               {loading ? "Adding..." : "Add Service Record"}
             </Button>
           </DialogFooter>

@@ -5,7 +5,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { MessagingProvider } from "@/contexts/MessagingContext";
+import { NotificationProvider } from "@/contexts/NotificationContext";
+import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { LoginPage } from "@/components/auth/LoginPage";
+import { ForgotPassword } from "@/components/auth/ForgotPassword";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { SuperAdminDashboard } from "@/pages/super-admin/SuperAdminDashboard";
 import { AdminManagement } from "@/pages/super-admin/AdminManagement";
@@ -40,6 +43,7 @@ function AppRoutes() {
   if (!isAuthenticated) {
     return (
       <Routes>
+        <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="*" element={<LoginPage />} />
       </Routes>
     );
@@ -91,19 +95,25 @@ function AppRoutes() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <MessagingProvider>
-            <AppRoutes />
-          </MessagingProvider>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <NotificationProvider>
+              <MessagingProvider>
+                <ErrorBoundary>
+                  <AppRoutes />
+                </ErrorBoundary>
+              </MessagingProvider>
+            </NotificationProvider>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/dashboard/StatCard';
+import { useAuth } from '@/contexts/AuthContext';
+import { useVehicles } from '@/hooks/useVehicles';
+import { useBookings } from '@/hooks/useBookings';
+import { useLocationFilter } from '@/hooks/useLocationFilter';
+import { useToast } from '@/hooks/use-toast';
+import { format, subWeeks, subMonths, subYears, parseISO, isWithinInterval } from 'date-fns';
 import { 
   Download, 
   FileText, 
@@ -17,7 +23,71 @@ import {
   Eye,
   Clock,
 } from 'lucide-react';
-import { toast } from 'sonner';
+
+const STORAGE_KEY_REPORTS = 'app_reports';
+const STORAGE_KEY_USERS = 'app_users';
+const STORAGE_KEY_RECORDS = 'app_vehicle_records';
+
+interface User {
+  id: string;
+  name: string;
+  role: string;
+  status: string;
+  location?: string;
+}
+
+interface VehicleRecord {
+  id: string;
+  academyLocation: string;
+  vehicleRegNo: string;
+  insuranceStatus: string;
+  pucStatus: string;
+  insuranceValidityDate?: string;
+  pucValidityDate?: string;
+  nextServiceDate?: string;
+  allocatedTrainer: string;
+  brand: string;
+  model: string;
+  costIncurred?: number;
+}
+
+const getUsers = (): User[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_USERS);
+    return stored ? JSON.parse(stored) : [];
+  } catch (err) {
+    console.error('Error loading users from localStorage:', err);
+    return [];
+  }
+};
+
+const getVehicleRecords = (): VehicleRecord[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_RECORDS);
+    return stored ? JSON.parse(stored) : [];
+  } catch (err) {
+    console.error('Error loading vehicle records from localStorage:', err);
+    return [];
+  }
+};
+
+const getReports = (): Report[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY_REPORTS);
+    return stored ? JSON.parse(stored) : [];
+  } catch (err) {
+    console.error('Error loading reports from localStorage:', err);
+    return [];
+  }
+};
+
+const saveReports = (reports: Report[]) => {
+  try {
+    localStorage.setItem(STORAGE_KEY_REPORTS, JSON.stringify(reports));
+  } catch (err) {
+    console.error('Error saving reports to localStorage:', err);
+  }
+};
 
 interface Report {
   id: string;
@@ -30,45 +100,47 @@ interface Report {
   fileSize?: string;
 }
 
-const mockReports: Report[] = [
+// Initial default reports
+const getInitialReports = (): Report[] => [
   {
     id: '1',
     name: 'Fleet Utilization Report',
     type: 'vehicle',
     description: 'Vehicle usage and efficiency analysis',
-    lastGenerated: '2024-01-15',
+    lastGenerated: format(new Date(), 'yyyy-MM-dd'),
     frequency: 'monthly',
     status: 'ready',
-    fileSize: '2.4 MB'
+    fileSize: '0 KB'
   },
   {
     id: '2',
     name: 'Booking Summary',
     type: 'booking',
     description: 'Trainer booking patterns and statistics',
-    lastGenerated: '2024-01-14',
+    lastGenerated: format(new Date(), 'yyyy-MM-dd'),
     frequency: 'weekly',
     status: 'ready',
-    fileSize: '1.8 MB'
+    fileSize: '0 KB'
   },
   {
     id: '3',
     name: 'Trainer Activity Report',
     type: 'trainer',
     description: 'Trainer usage and engagement metrics',
-    lastGenerated: '2024-01-10',
+    lastGenerated: format(new Date(), 'yyyy-MM-dd'),
     frequency: 'monthly',
     status: 'ready',
-    fileSize: '956 KB'
+    fileSize: '0 KB'
   },
   {
     id: '4',
     name: 'Maintenance Log',
     type: 'maintenance',
     description: 'Vehicle maintenance and downtime tracking',
-    lastGenerated: '2024-01-12',
+    lastGenerated: format(new Date(), 'yyyy-MM-dd'),
     frequency: 'monthly',
-    status: 'generating',
+    status: 'ready',
+    fileSize: '0 KB'
   }
 ];
 
@@ -97,63 +169,398 @@ const reportTemplates = [
 ];
 
 export function Reports() {
-  const [reports, setReports] = useState<Report[]>(mockReports);
+  const { user } = useAuth();
+  const { vehicles, isLoading: vehiclesLoading } = useVehicles();
+  const { bookings, loading: bookingsLoading } = useBookings();
+  const { filterByLocation } = useLocationFilter();
+  const { toast } = useToast();
+  
+  // Load reports from localStorage or use initial reports
+  const [reports, setReports] = useState<Report[]>(() => {
+    const stored = getReports();
+    if (stored.length > 0) {
+      return stored;
+    }
+    const initial = getInitialReports();
+    saveReports(initial);
+    return initial;
+  });
+  
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [reportForm, setReportForm] = useState({
     name: '',
     dateRange: 'last-month',
     frequency: 'monthly',
-    format: 'pdf'
+    format: 'csv'
   });
   const [loading, setLoading] = useState<string | null>(null);
+  
+  // Get admin's location
+  const adminLocation = user?.location ? (user.location === 'PTC' ? 'Pune' : user.location === 'BLR' ? 'Bangalore' : user.location) : 'Pune';
+  
+  // Load users and service records
+  const [users, setUsers] = useState<User[]>([]);
+  const [records, setRecords] = useState<VehicleRecord[]>([]);
+  
+  useEffect(() => {
+    const allUsers = getUsers();
+    const allRecords = getVehicleRecords();
+    
+    // Filter by location
+    const locationUsers = filterByLocation(allUsers.map(u => ({
+      ...u,
+      location: u.location || user?.location
+    }))) as User[];
+    
+    const locationRecords = filterByLocation(allRecords.map(r => ({
+      ...r,
+      location: r.academyLocation
+    }))) as VehicleRecord[];
+    
+    setUsers(locationUsers);
+    setRecords(locationRecords);
+  }, [user?.location, filterByLocation]);
+  
+  // Filter vehicles and bookings by location
+  const locationVehicles = filterByLocation(vehicles.map(v => ({
+    ...v,
+    location: v.location
+  })));
+  
+  const locationBookings = filterByLocation(bookings.map(b => ({
+    ...b,
+    location: b.requestedLocation
+  })));
+  
+  // Save reports to localStorage whenever they change
+  useEffect(() => {
+    saveReports(reports);
+  }, [reports]);
 
+  // Get date range based on selection
+  const getDateRange = (dateRange: string) => {
+    const now = new Date();
+    let startDate: Date;
+    
+    switch (dateRange) {
+      case 'last-week':
+        startDate = subWeeks(now, 1);
+        break;
+      case 'last-month':
+        startDate = subMonths(now, 1);
+        break;
+      case 'last-quarter':
+        startDate = subMonths(now, 3);
+        break;
+      case 'last-year':
+        startDate = subYears(now, 1);
+        break;
+      default:
+        startDate = subMonths(now, 1);
+    }
+    
+    return { startDate, endDate: now };
+  };
+  
+  // Generate report data based on type
+  const generateReportData = (report: Report, dateRange?: string) => {
+    const range = dateRange ? getDateRange(dateRange) : getDateRange('last-month');
+    const filteredBookings = locationBookings.filter(b => {
+      const bookingDate = parseISO(b.createdAt);
+      return isWithinInterval(bookingDate, { start: range.startDate, end: range.endDate });
+    });
+    
+    switch (report.type) {
+      case 'vehicle':
+        return generateVehicleReport(locationVehicles, records, filteredBookings);
+      case 'booking':
+        return generateBookingReport(filteredBookings, locationVehicles);
+      case 'trainer':
+        return generateTrainerReport(users, records, filteredBookings);
+      case 'maintenance':
+        return generateMaintenanceReport(records, locationVehicles);
+      default:
+        return [];
+    }
+  };
+  
+  const generateVehicleReport = (vehicles: any[], records: VehicleRecord[], bookings: any[]) => {
+    const csvData = [
+      ['Fleet Utilization Report', format(new Date(), 'yyyy-MM-dd')],
+      ['Location', adminLocation],
+      [],
+      ['Vehicle Overview'],
+      ['Total Vehicles', vehicles.length],
+      ['Active Vehicles', vehicles.filter(v => v.status === 'Available' || v.status === 'In Use').length],
+      ['Under Maintenance', vehicles.filter(v => v.status === 'Maintenance').length],
+      [],
+      ['Vehicle Details'],
+      ['Registration No', 'Brand', 'Model', 'Year', 'Status', 'Location', 'Allocated Trainer'],
+      ...vehicles.map((v: any) => [
+        v.regNo || 'N/A',
+        v.brand || 'N/A',
+        v.model || 'N/A',
+        v.year || 'N/A',
+        v.status || 'N/A',
+        v.location || 'N/A',
+        records.find(r => r.vehicleRegNo === v.regNo)?.allocatedTrainer || 'Unallocated'
+      ]),
+      [],
+      ['Compliance Status'],
+      ['Registration No', 'Insurance Status', 'PUC Status', 'Insurance Valid Until', 'PUC Valid Until'],
+      ...records.map(r => [
+        r.vehicleRegNo,
+        r.insuranceStatus || 'N/A',
+        r.pucStatus || 'N/A',
+        r.insuranceValidityDate ? format(parseISO(r.insuranceValidityDate), 'yyyy-MM-dd') : 'N/A',
+        r.pucValidityDate ? format(parseISO(r.pucValidityDate), 'yyyy-MM-dd') : 'N/A'
+      ]),
+      [],
+      ['Booking Statistics'],
+      ['Total Bookings', bookings.length],
+      ['Active Bookings', bookings.filter(b => b.status === 'active').length],
+      ['Completed Bookings', bookings.filter(b => b.status === 'completed').length]
+    ];
+    
+    return csvData;
+  };
+  
+  const generateBookingReport = (bookings: any[], vehicles: any[]) => {
+    const csvData = [
+      ['Booking Summary Report', format(new Date(), 'yyyy-MM-dd')],
+      ['Location', adminLocation],
+      [],
+      ['Summary Statistics'],
+      ['Total Bookings', bookings.length],
+      ['Pending', bookings.filter(b => b.status === 'pending').length],
+      ['Approved', bookings.filter(b => b.status === 'approved').length],
+      ['Active', bookings.filter(b => b.status === 'active').length],
+      ['Completed', bookings.filter(b => b.status === 'completed').length],
+      ['Cancelled', bookings.filter(b => b.status === 'cancelled').length],
+      [],
+      ['Booking Details'],
+      ['Booking ID', 'Trainer Name', 'Vehicle', 'Purpose', 'Start Date', 'End Date', 'Status', 'Location'],
+      ...bookings.map(b => {
+        const vehicle = vehicles.find((v: any) => v.id === b.vehicleId);
+        return [
+          b.id,
+          b.trainerName || 'N/A',
+          vehicle ? `${vehicle.brand} ${vehicle.model} - ${vehicle.regNo}` : 'N/A',
+          b.purpose || 'N/A',
+          format(parseISO(b.startDate), 'yyyy-MM-dd HH:mm'),
+          format(parseISO(b.endDate), 'yyyy-MM-dd HH:mm'),
+          b.status || 'N/A',
+          b.requestedLocation || 'N/A'
+        ];
+      })
+    ];
+    
+    return csvData;
+  };
+  
+  const generateTrainerReport = (users: User[], records: VehicleRecord[], bookings: any[]) => {
+    const trainers = users.filter(u => u.role === 'trainer' && u.status === 'active');
+    
+    const csvData = [
+      ['Trainer Activity Report', format(new Date(), 'yyyy-MM-dd')],
+      ['Location', adminLocation],
+      [],
+      ['Trainer Overview'],
+      ['Total Trainers', trainers.length],
+      ['Active Trainers', trainers.length],
+      [],
+      ['Trainer Details'],
+      ['Name', 'Email', 'Status', 'Location', 'Vehicles Allocated', 'Total Bookings'],
+      ...trainers.map(trainer => {
+        const allocatedVehicles = records.filter(r => r.allocatedTrainer === trainer.name).length;
+        const trainerBookings = bookings.filter(b => b.trainerName === trainer.name).length;
+        
+        return [
+          trainer.name || 'N/A',
+          (trainer as any).email || 'N/A',
+          trainer.status || 'N/A',
+          trainer.location || 'N/A',
+          allocatedVehicles,
+          trainerBookings
+        ];
+      }),
+      [],
+      ['Trainer Vehicle Allocations'],
+      ['Trainer', 'Vehicle Registration', 'Brand', 'Model'],
+      ...records
+        .filter(r => r.allocatedTrainer && r.allocatedTrainer !== 'Unallocated')
+        .map(r => [
+          r.allocatedTrainer,
+          r.vehicleRegNo,
+          r.brand,
+          r.model
+        ])
+    ];
+    
+    return csvData;
+  };
+  
+  const generateMaintenanceReport = (records: VehicleRecord[], vehicles: any[]) => {
+    const csvData = [
+      ['Maintenance Log Report', format(new Date(), 'yyyy-MM-dd')],
+      ['Location', adminLocation],
+      [],
+      ['Maintenance Overview'],
+      ['Total Vehicles', vehicles.length],
+      ['Under Maintenance', vehicles.filter((v: any) => v.status === 'Maintenance').length],
+      ['Insurance Expired', records.filter(r => r.insuranceStatus === 'Expired').length],
+      ['PUC Expired', records.filter(r => r.pucStatus === 'Expired').length],
+      [],
+      ['Maintenance Details'],
+      ['Vehicle Registration', 'Brand', 'Model', 'Insurance Status', 'PUC Status', 'Next Service Date', 'Allocated Trainer'],
+      ...records.map(r => {
+        const vehicle = vehicles.find((v: any) => v.regNo === r.vehicleRegNo);
+        return [
+          r.vehicleRegNo,
+          r.brand || (vehicle?.brand || 'N/A'),
+          r.model || (vehicle?.model || 'N/A'),
+          r.insuranceStatus || 'N/A',
+          r.pucStatus || 'N/A',
+          r.nextServiceDate ? format(parseISO(r.nextServiceDate), 'yyyy-MM-dd') : 'N/A',
+          r.allocatedTrainer || 'Unallocated'
+        ];
+      }),
+      [],
+      ['Vehicles Under Maintenance'],
+      ['Registration No', 'Brand', 'Model', 'Status'],
+      ...vehicles
+        .filter((v: any) => v.status === 'Maintenance')
+        .map((v: any) => [
+          v.regNo || 'N/A',
+          v.brand || 'N/A',
+          v.model || 'N/A',
+          v.status || 'N/A'
+        ])
+    ];
+    
+    return csvData;
+  };
+  
+  // Export CSV function
+  const exportToCSV = (csvData: any[][], filename: string) => {
+    const csv = csvData.map(row => 
+      row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
+    ).join('\n');
+    
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+  
   const handleGenerateReport = async (reportId: string) => {
     setLoading(reportId);
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const report = reports.find(r => r.id === reportId);
+      if (!report) {
+        throw new Error('Report not found');
+      }
       
-      setReports(prev => prev.map(report => 
-        report.id === reportId 
+      // Generate report data
+      const csvData = generateReportData(report);
+      const filename = `${report.name.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+      
+      // Export the report
+      exportToCSV(csvData, filename);
+      
+      // Calculate file size (approximate)
+      const csvString = csvData.map(row => row.join(',')).join('\n');
+      const fileSizeKB = Math.round(csvString.length / 1024);
+      const fileSize = fileSizeKB > 1024 
+        ? `${(fileSizeKB / 1024).toFixed(1)} MB` 
+        : `${fileSizeKB} KB`;
+      
+      // Update report status
+      setReports(prev => prev.map(r => 
+        r.id === reportId 
           ? { 
-              ...report, 
+              ...r, 
               status: 'ready' as const, 
-              lastGenerated: new Date().toISOString().split('T')[0],
-              fileSize: `${(Math.random() * 3 + 1).toFixed(1)} MB`
+              lastGenerated: format(new Date(), 'yyyy-MM-dd'),
+              fileSize
             }
-          : report
+          : r
       ));
       
-      toast.success('Report generated successfully');
+      toast({
+        title: 'Report generated successfully',
+        description: `Report "${report.name}" has been downloaded`,
+      });
     } catch (error) {
-      toast.error('Failed to generate report');
+      toast({
+        title: 'Failed to generate report',
+        description: 'An error occurred while generating the report',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(null);
     }
   };
+  
+  const handleViewReport = (reportId: string) => {
+    const report = reports.find(r => r.id === reportId);
+    if (!report) return;
+    
+    const csvData = generateReportData(report);
+    const csv = csvData.map(row => row.join(',')).join('\n');
+    
+    // Open in new window as text
+    const blob = new Blob([csv], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+  };
+  
+  const handleDownloadReport = (reportId: string) => {
+    handleGenerateReport(reportId);
+  };
 
   const handleCreateCustomReport = async () => {
     if (!selectedTemplate || !reportForm.name) {
-      toast.error('Please select a template and enter a report name');
+      toast({
+        title: 'Validation Error',
+        description: 'Please select a template and enter a report name',
+        variant: 'destructive',
+      });
       return;
     }
 
     setLoading('custom');
     
     try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
       const template = reportTemplates.find(t => t.id === selectedTemplate);
       const newReport: Report = {
         id: Date.now().toString(),
         name: reportForm.name,
         type: (template?.type || 'vehicle') as Report['type'],
         description: template?.description || '',
-        lastGenerated: new Date().toISOString().split('T')[0],
+        lastGenerated: format(new Date(), 'yyyy-MM-dd'),
         frequency: reportForm.frequency as Report['frequency'],
         status: 'ready',
-        fileSize: `${(Math.random() * 3 + 1).toFixed(1)} MB`
+        fileSize: '0 KB'
       };
+      
+      // Generate and download the report immediately
+      const csvData = generateReportData(newReport, reportForm.dateRange);
+      const filename = `${newReport.name.replace(/\s+/g, '-')}-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+      exportToCSV(csvData, filename);
+      
+      // Calculate file size
+      const csvString = csvData.map(row => row.join(',')).join('\n');
+      const fileSizeKB = Math.round(csvString.length / 1024);
+      newReport.fileSize = fileSizeKB > 1024 
+        ? `${(fileSizeKB / 1024).toFixed(1)} MB` 
+        : `${fileSizeKB} KB`;
       
       setReports(prev => [...prev, newReport]);
       
@@ -162,13 +569,20 @@ export function Reports() {
         name: '',
         dateRange: 'last-month',
         frequency: 'monthly',
-        format: 'pdf'
+        format: 'csv'
       });
       setSelectedTemplate('');
       
-      toast.success('Report created successfully');
+      toast({
+        title: 'Report created successfully',
+        description: `Report "${newReport.name}" has been created and downloaded`,
+      });
     } catch (error) {
-      toast.error('Failed to create report');
+      toast({
+        title: 'Failed to create report',
+        description: 'An error occurred while creating the report',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(null);
     }
@@ -321,8 +735,6 @@ export function Reports() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pdf">PDF</SelectItem>
-                    <SelectItem value="excel">Excel</SelectItem>
                     <SelectItem value="csv">CSV</SelectItem>
                   </SelectContent>
                 </Select>
@@ -380,11 +792,26 @@ export function Reports() {
                 <div className="flex items-center space-x-2">
                   {report.status === 'ready' && (
                     <>
-                      <Button variant="ghost" size="sm">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleViewReport(report.id)}
+                        title="View Report"
+                      >
                         <Eye className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm">
-                        <Download className="h-4 w-4" />
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleDownloadReport(report.id)}
+                        disabled={loading === report.id}
+                        title="Download Report"
+                      >
+                        {loading === report.id ? (
+                          <Clock className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="h-4 w-4" />
+                        )}
                       </Button>
                     </>
                   )}

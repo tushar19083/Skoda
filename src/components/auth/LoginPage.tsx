@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -150,7 +151,15 @@ export function LoginPage() {
               >
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </Button>
-              <a className='text-black/60 text-sm' href="">Forgot Password?</a>
+              
+              <div className="text-center">
+                <Link 
+                  to="/forgot-password" 
+                  className="text-sm text-black/60 hover:text-black/80 underline"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
             </form>
           </CardContent>
         </Card>
